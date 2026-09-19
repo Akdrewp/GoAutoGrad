@@ -1,6 +1,5 @@
-"""
+""" """
 
-"""
 
 # Low-level numerical storage & strided memory (Backend / C interface)
 class NDArray:
@@ -9,6 +8,7 @@ class NDArray:
     This is implemented in C++ to make operations fast.
 
     """
+
     def __init__(self, data, shape, strides, offset=0):
         self.strides = strides
 

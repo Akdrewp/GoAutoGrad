@@ -1,8 +1,19 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from GoTorch.autograd.operations import Add
+from GoTorch.backend.ndarray import NDArray
+
+if TYPE_CHECKING:
+    from GoTorch.tensor import Tensor
+
+
 class AutogradEngine:
     """Orchestrates reverse-mode automatic differentiation over a DAG"""
 
     @classmethod
-    def backward(cls, target: 'Tensor', out_grad: 'Tensor' = None) -> None:
+    def backward(cls, target: "Tensor", out_grad: "Tensor" = None) -> None:
         """Executes the backward pass starting from the target node.
 
         1. Create DFS array with no repeats
@@ -23,12 +34,14 @@ class AutogradEngine:
             if node.op is None:
                 continue
 
-            grad_tensor = node.grad if isinstance(node.grad, Tensor) else Tensor(node.grad)
+            grad_tensor = (
+                node.grad if isinstance(node.grad, Tensor) else Tensor(node.grad)
+            )
             parent_grads = node.op.gradient(grad_tensor, node)
             cls._accumulate_parent_gradients(node, parent_grads)
 
     @classmethod
-    def _topological_sort(cls, root: 'Tensor') -> list['Tensor']:
+    def _topological_sort(cls, root: "Tensor") -> list["Tensor"]:
         """Orders graph nodes using post-order depth-first search.
 
         Args:
@@ -37,10 +50,10 @@ class AutogradEngine:
         Returns:
             A list of nodes ordered from inputs/leaves to output.
         """
-        topo: list['Tensor'] = []
-        visited: set['Tensor'] = set()
+        topo: list["Tensor"] = []
+        visited: set["Tensor"] = set()
 
-        def build_topo(node: 'Tensor') -> None:
+        def build_topo(node: "Tensor") -> None:
             if node not in visited:
                 visited.add(node)
                 for parent in node.inputs:
@@ -51,7 +64,7 @@ class AutogradEngine:
         return topo
 
     @classmethod
-    def _seed_gradient(cls, target: 'Tensor', out_grad: 'Tensor' = None) -> None:
+    def _seed_gradient(cls, target: "Tensor", out_grad: "Tensor" = None) -> None:
         """Initializes the seed gradient for the backward pass.
 
         Args:
@@ -65,9 +78,9 @@ class AutogradEngine:
 
     @classmethod
     def _accumulate_parent_gradients(
-            cls,
-        node: 'Tensor',
-        parent_grads: tuple['Tensor', ...],
+        cls,
+        node: "Tensor",
+        parent_grads: tuple["Tensor", ...],
     ) -> None:
         """Accumulates calculated gradients into parent input nodes.
 
