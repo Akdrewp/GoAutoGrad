@@ -1,3 +1,7 @@
+from GoTorch.backend.ndarray import NDArray
+from GoTorch.tensor import Tensor
+
+
 # Specified operations that take in NDArrays and return results
 class Operation:
     @classmethod
