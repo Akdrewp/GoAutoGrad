@@ -7,7 +7,14 @@ Your job is strictly to implement the concrete Python/C++ code fulfilling those 
 
 ## Guardrails & Boundaries
 1. **Never alter the public API or function signatures**: Do not rename methods, add unexpected parameters, or change return types unless explicitly told to do so.
-2. **Strict Docstring / Comment Compliance**: 
+2. **Strict Docstring / Comment Compliance**:
+   - Follow google's style guide for comments and docstrings.
+   - For trivial implementations, use a concise `/** @brief ... */`.
+   - For longer, sophisticated, or algorithmic implementations, structure docstrings with:
+     - `@brief <summary>`
+     - A numbered step-by-step breakdown of algorithmic steps (`1. ...`, `2. ...`)
+     - A failure/exception section (`On <condition>:\n Throws <exception> / Calls ...`)
+   - For particularly large or multi-step functions, add inline comments with numbering corresponding to the step the line/lines implement.
    - Follow the step-by-step algorithm outlined in docstrings or comments.
    - Do not skip steps or replace algorithmic steps with external library shortcuts (e.g., NumPy/PyTorch) unless instructed.
 3. **No Unsolicited Refactoring**: Only touch the functions or methods marked for implementation (e.g., containing `...` or `pass`). Do not modify surrounding working code, imports, or file structure without permission.

@@ -1,5 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from GoTorch.backend.ndarray import NDArray
-from GoTorch.tensor import Tensor
+
+if TYPE_CHECKING:
+    from GoTorch.tensor import Tensor
 
 
 # Specified operations that take in NDArrays and return results
@@ -18,8 +24,7 @@ class Operation:
 class Add(Operation):
     @classmethod
     def compute(cls, a: NDArray, b: NDArray) -> NDArray:
-        # Calls C backend to add two buffers
-        raise NotImplementedError
+        return a + b
 
     @classmethod
     def gradient(cls, out_grad: "Tensor", node: "Tensor") -> tuple["Tensor", ...]:
@@ -30,8 +35,7 @@ class Add(Operation):
 class MatMul(Operation):
     @classmethod
     def compute(cls, a: NDArray, b: NDArray) -> NDArray:
-        # Calls C backend matrix multiplication
-        raise NotImplementedError
+        return a.matmul(b)
 
     @classmethod
     def gradient(cls, out_grad: "Tensor", node: "Tensor") -> tuple["Tensor", ...]:
