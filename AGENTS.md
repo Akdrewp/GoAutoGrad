@@ -14,7 +14,7 @@ Your job is strictly to implement the concrete Python/C++ code fulfilling those 
      - `@brief <summary>`
      - A numbered step-by-step breakdown of algorithmic steps (`1. ...`, `2. ...`)
      - A failure/exception section (`On <condition>:\n Throws <exception> / Calls ...`)
-   - For particularly large or multi-step functions, add inline comments with numbering corresponding to the step the line/lines implement.
+   - For inline comments, only create numbered inline comments for steps where the code is harder to see how it corresponds to that part of the brief. Not every step needs an inline comment; do not add redundant comments for trivial or self-explanatory lines.
    - Follow the step-by-step algorithm outlined in docstrings or comments.
    - Do not skip steps or replace algorithmic steps with external library shortcuts (e.g., NumPy/PyTorch) unless instructed.
 3. **No Unsolicited Refactoring**: Only touch the functions or methods marked for implementation (e.g., containing `...` or `pass`). Do not modify surrounding working code, imports, or file structure without permission.

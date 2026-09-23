@@ -195,6 +195,28 @@ public:
     }
 
     /**
+     * @brief Performs element-wise subtraction with broadcasting.
+     *
+     * Shapes are padded to the left with 1s to match the maximum rank.
+     * If corresponding dimensions do not match and neither is 1, a
+     * std::invalid_argument exception is thrown.
+     *
+     * @param subtrahend The array to subtract from this array.
+     * @return New ndarray containing the broadcasted subtraction result.
+     * @throws std::invalid_argument If shapes cannot be broadcasted together.
+     */
+    ndarray sub(const ndarray& subtrahend) const;
+
+    /**
+     * @brief Operator overload for element-wise subtraction with broadcasting.
+     * @param subtrahend The array to subtract from this array.
+     * @return New ndarray containing the broadcasted subtraction result.
+     */
+    ndarray operator-(const ndarray& subtrahend) const {
+        return sub(subtrahend);
+    }
+
+    /**
      * @brief Performs 2D matrix multiplication: (M, K) @ (K, N) -> (M, N).
      * @param other The matrix to multiply with.
      * @return New ndarray containing the matrix multiplication result.

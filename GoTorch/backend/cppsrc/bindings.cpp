@@ -56,6 +56,19 @@ PYBIND11_MODULE(native_backend, m) {
             }
             return py::reinterpret_borrow<py::object>(Py_NotImplemented);
         })
+        .def("sub", &NDArray::sub, py::arg("subtrahend"))
+        .def("__sub__", [](const NDArray& self, py::object other) -> py::object {
+            if (py::isinstance<NDArray>(other)) {
+                return py::cast(self.sub(other.cast<const NDArray&>()));
+            }
+            return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+        })
+        .def("__rsub__", [](const NDArray& self, py::object other) -> py::object {
+            if (py::isinstance<NDArray>(other)) {
+                return py::cast(other.cast<const NDArray&>().sub(self));
+            }
+            return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+        })
         .def("transpose", &NDArray::transpose, py::arg("dim0") = 0, py::arg("dim1") = 1)
         .def("matmul", &NDArray::matmul, py::arg("other"))
         .def("is_contiguous", &NDArray::is_contiguous)

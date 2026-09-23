@@ -1,15 +1,11 @@
 #include "ndarray.hpp"
 
 #include <algorithm>
+#include <functional>
 #include <stdexcept>
 
 /**
  * @brief Computes standard row-major (C-contiguous) strides for a given shape.
- * 
- * 1. Returns empty stride list if shape is empty
- * 2. Initializes stride vector of shape size with 1s
- * 3. Iterates backwards from second-to-last dimension, setting each stride
- *    to the product of next stride and dimension size
  */
 template <typename T>
 std::vector<size_t> ndarray<T>::default_strides(const std::vector<size_t>& shape) {
@@ -17,8 +13,6 @@ std::vector<size_t> ndarray<T>::default_strides(const std::vector<size_t>& shape
         return {};
     }
     std::vector<size_t> str(shape.size(), 1);
-    // Last value in stride will always be 1
-    // from second last value to first
     for (int i = static_cast<int>(shape.size()) - 2; i >= 0; --i) {
         str[i] = str[i + 1] * shape[i + 1];
     }
@@ -43,10 +37,6 @@ void ndarray<T>::CreateDeepCopy(const ndarray& other) {
 
 /**
  * @brief Allocates and initializes ndarray storage from a raw buffer and shape.
- * 
- * 1. Assigns shape dimensions and memory offset
- * 2. Computes default strides if custom strides are omitted
- * 3. Allocates storage buffer (copies from pointer if provided, else allocates zero-filled)
  */
 template <typename T>
 void ndarray<T>::CreateNDArray(
@@ -91,14 +81,6 @@ ndarray<T>::ndarray(
 
 /**
  * @brief Creates a zero-copy transposed view by swapping two dimensions and their strides.
- * 
- * 1. Returns self if shape rank is less than 2
- * 2. Validates dimension indices against array rank
- * 3. Swaps shape dimensions and corresponding strides
- * 4. Returns view sharing underlying storage buffer
- * 
- * On dimension out of bounds:
- * Throws std::out_of_range
  */
 template <typename T>
 ndarray<T> ndarray<T>::transpose(size_t dim0, size_t dim1) const {
@@ -142,43 +124,59 @@ size_t ndarray<T>::index_to_offset(const std::vector<size_t>& indices) const {
 
 // Operation logic
 
+namespace {
 
 /**
- * @brief Performs element-wise addition with broadcasting.
+ * @brief Advances a coordinate vector by one in row-major order.
  * 
- * 1. Pads both input shapes to the left with 1s to match the maximum rank
- * 2. Validates broadcast dimension compatibility and determines output shape
- * 3. Computes effective strides for both operands (0 for broadcasted dimensions)
- * 4. Allocates output buffer and iterates through coordinates in row-major order
- * 5. Accumulates element values from respective storage offsets
+ * 1. Iterates backwards from innermost dimension
+ * 2. Increments coordinate; if within bounds, returns
+ * 3. Resets coordinate to 0 and carries over to next outer dimension
+ */
+inline void advance_coordinate(std::vector<size_t>& coord, const std::vector<size_t>& shape) {
+    for (int d = static_cast<int>(shape.size()) - 1; d >= 0; --d) {
+        coord[d]++;
+        if (coord[d] < shape[d]) {
+            break;
+        }
+        coord[d] = 0;
+    }
+}
+
+/**
+ * @brief Pads a shape to the left with 1s to match the target rank.
+ *
+ * (3), target_rank=3 -> (1, 1, 3) 
+ * No padding added if already target rank
+ */
+inline std::vector<size_t> pad_shape(const std::vector<size_t>& shape, size_t target_rank) {
+    std::vector<size_t> padded(target_rank, 1);
+    size_t pad = target_rank - shape.size();
+    for (size_t i = 0; i < shape.size(); ++i) {
+        padded[pad + i] = shape[i];
+    }
+    return padded;
+}
+
+/**
+ * @brief Validates broadcast compatibility between two padded shapes and determines output shape.
+ * 
+ * 1. Allocates output shape vector of size max_ndim
+ * 2. Compares corresponding dimensions of padded shapes
+ * 3. Sets output dimension if equal or broadcasts if one dimension is 1
+ * 4. Throws std::invalid_argument if dimensions are incompatible
  * 
  * On shape mismatch:
  * Throws std::invalid_argument
- * On unallocated storage:
- * Throws std::runtime_error
  */
-template <typename T>
-ndarray<T> ndarray<T>::add(const ndarray<T>& addend) const {
-    size_t ndim_a = shape.size();
-    size_t ndim_b = addend.shape.size();
-    size_t max_ndim = std::max(ndim_a, ndim_b);
-
-    // 1. Pad shapes to the left with 1s so both have rank max_ndim
-    std::vector<size_t> padded_a(max_ndim, 1);
-    std::vector<size_t> padded_b(max_ndim, 1);
-
-    size_t pad_a = max_ndim - ndim_a;
-    for (size_t i = 0; i < ndim_a; ++i) {
-        padded_a[pad_a + i] = shape[i];
-    }
-
-    size_t pad_b = max_ndim - ndim_b;
-    for (size_t i = 0; i < ndim_b; ++i) {
-        padded_b[pad_b + i] = addend.shape[i];
-    }
-
-    // 2. Validate broadcast compatibility and determine output shape
+inline std::vector<size_t> broadcast_shapes(
+    const std::vector<size_t>& padded_a,
+    const std::vector<size_t>& padded_b
+) {
+    size_t max_ndim = padded_a.size();
     std::vector<size_t> out_shape(max_ndim);
+
+    // 2-3. Broadcastable if dimensions match or one of them is 1
     for (size_t i = 0; i < max_ndim; ++i) {
         size_t dim_a = padded_a[i];
         size_t dim_b = padded_b[i];
@@ -194,63 +192,154 @@ ndarray<T> ndarray<T>::add(const ndarray<T>& addend) const {
             );
         }
     }
+    return out_shape;
+}
+
+/**
+ * @brief Computes effective broadcasted strides for an operand.
+ * 
+ * 1. Initializes stride vector of target_rank with 0s
+ * 2. Computes left-padding offset from shape size and target_rank
+ * 3. Maps non-broadcasted dimensions (size > 1) to original strides
+ */
+inline std::vector<size_t> compute_broadcast_strides(
+    const std::vector<size_t>& shape,
+    const std::vector<size_t>& strides,
+    size_t target_rank
+) {
+    std::vector<size_t> eff_strides(target_rank, 0);
+    size_t pad = target_rank - shape.size();
+
+    // 3. Map non-broadcasted dimensions (size > 1) to original strides
+    for (size_t i = 0; i < target_rank; ++i) {
+        if (i >= pad) {
+            size_t orig_dim = i - pad;
+            if (shape[orig_dim] > 1) {
+                eff_strides[i] = strides[orig_dim];
+            }
+        }
+    }
+    return eff_strides;
+}
+
+/**
+ * @brief Allocates output buffer with total element count matching shape.
+ */
+template <typename T>
+inline std::vector<T> allocate_output_buffer(const std::vector<size_t>& shape) {
+    return std::vector<T>(ndarray<T>::num_elements(shape));
+}
+
+/**
+ * @brief Accumulates element values from respective storage offsets with broadcasting.
+ * 
+ * 1. Verifies storage buffers for both operands are allocated
+ * 2. Initializes coordinate tracking vector
+ * 3. Computes buffer offsets using effective strides and stores element sums into output buffer
+ * 4. Advances coordinates in row-major order
+ * 
+ * On unallocated storage:
+ * Throws std::runtime_error
+ */
+template <typename T, typename BinaryOp>
+inline void accumulate_broadcast(
+    const std::shared_ptr<Storage<T>>& storage_a,
+    size_t offset_a,
+    const std::shared_ptr<Storage<T>>& storage_b,
+    size_t offset_b,
+    const std::vector<size_t>& eff_strides_a,
+    const std::vector<size_t>& eff_strides_b,
+    const std::vector<size_t>& out_shape,
+    std::vector<T>& out_vec,
+    BinaryOp op
+) {
+    size_t total_elements = out_vec.size();
+    if (total_elements == 0) {
+        return;
+    }
+    if (!storage_a || !storage_b) {
+        throw std::runtime_error("NDArray storage is unallocated");
+    }
+    const T* a_ptr = storage_a->data.data() + offset_a;
+    const T* b_ptr = storage_b->data.data() + offset_b;
+    size_t max_ndim = out_shape.size();
+
+    std::vector<size_t> coord(max_ndim, 0);
+    for (size_t out_idx = 0; out_idx < total_elements; ++out_idx) {
+        // 3. Compute strided offsets and apply binary operation
+        size_t off_a = 0;
+        size_t off_b = 0;
+        for (size_t d = 0; d < max_ndim; ++d) {
+            off_a += coord[d] * eff_strides_a[d];
+            off_b += coord[d] * eff_strides_b[d];
+        }
+        out_vec[out_idx] = op(a_ptr[off_a], b_ptr[off_b]);
+
+        advance_coordinate(coord, out_shape);
+    }
+}
+
+/**
+ * @brief Applies an element-wise binary operation across two ndarrays with broadcasting.
+ * 
+ * 1. Pads both input shapes to the left with 1s to match the maximum rank
+ * 2. Validates broadcast dimension compatibility and determines output shape
+ * 3. Computes effective strides for both operands (0 for broadcasted dimensions)
+ * 4. Allocates output buffer and iterates through coordinates in row-major order
+ * 5. Applies binary operation to element values from respective storage offsets
+ * 
+ * On shape mismatch:
+ * Throws std::invalid_argument
+ * On unallocated storage:
+ * Throws std::runtime_error
+ */
+template <typename T, typename BinaryOp>
+inline ndarray<T> broadcast_binary_op(
+    const ndarray<T>& a,
+    const ndarray<T>& b,
+    BinaryOp op
+) {
+    size_t ndim_a = a.shape.size();
+    size_t ndim_b = b.shape.size();
+    size_t max_ndim = std::max(ndim_a, ndim_b);
+
+    // 1. Pad shapes to the left with 1s so both have rank max_ndim
+    std::vector<size_t> padded_a = pad_shape(a.shape, max_ndim);
+    std::vector<size_t> padded_b = pad_shape(b.shape, max_ndim);
+
+    // 2. Validate broadcast compatibility and determine output shape
+    std::vector<size_t> out_shape = broadcast_shapes(padded_a, padded_b);
 
     // 3. Compute effective broadcasted strides for both operands
-    std::vector<size_t> eff_strides_a(max_ndim, 0);
-    for (size_t i = 0; i < max_ndim; ++i) {
-        if (i >= pad_a) {
-            size_t orig_dim = i - pad_a;
-            if (shape[orig_dim] > 1) {
-                eff_strides_a[i] = strides[orig_dim];
-            }
-        }
-    }
+    std::vector<size_t> eff_strides_a = compute_broadcast_strides(a.shape, a.strides, max_ndim);
+    std::vector<size_t> eff_strides_b = compute_broadcast_strides(b.shape, b.strides, max_ndim);
 
-    std::vector<size_t> eff_strides_b(max_ndim, 0);
-    for (size_t i = 0; i < max_ndim; ++i) {
-        if (i >= pad_b) {
-            size_t orig_dim = i - pad_b;
-            if (addend.shape[orig_dim] > 1) {
-                eff_strides_b[i] = addend.strides[orig_dim];
-            }
-        }
-    }
+    // 4. Allocate output buffer
+    std::vector<T> out_vec = allocate_output_buffer<T>(out_shape);
 
-    // 4. Allocate output buffer and iterate through coordinates in row-major order
-    size_t total_elements = num_elements(out_shape);
-    std::vector<T> out_vec(total_elements);
-
-    if (total_elements > 0) {
-        if (!storage || !addend.storage) {
-            throw std::runtime_error("NDArray storage is unallocated");
-        }
-        const T* a_ptr = storage->data.data() + offset;
-        const T* b_ptr = addend.storage->data.data() + addend.offset;
-
-        // 5. Accumulate element values from respective storage offsets
-        std::vector<size_t> coord(max_ndim, 0);
-        for (size_t out_idx = 0; out_idx < total_elements; ++out_idx) {
-            size_t off_a = 0;
-            size_t off_b = 0;
-            for (size_t d = 0; d < max_ndim; ++d) {
-                off_a += coord[d] * eff_strides_a[d];
-                off_b += coord[d] * eff_strides_b[d];
-            }
-            out_vec[out_idx] = a_ptr[off_a] + b_ptr[off_b];
-
-            if (max_ndim > 0) {
-                for (int d = static_cast<int>(max_ndim) - 1; d >= 0; --d) {
-                    coord[d]++;
-                    if (coord[d] < out_shape[d]) {
-                        break;
-                    }
-                    coord[d] = 0;
-                }
-            }
-        }
-    }
+    // 5. Apply binary operation across strided coordinates
+    accumulate_broadcast(a.storage, a.offset, b.storage, b.offset,
+                         eff_strides_a, eff_strides_b, out_shape, out_vec, op);
 
     return ndarray<T>(out_vec, out_shape);
+}
+
+}  // namespace
+
+/**
+ * @brief Performs element-wise addition with broadcasting.
+ */
+template <typename T>
+ndarray<T> ndarray<T>::add(const ndarray<T>& addend) const {
+    return broadcast_binary_op(*this, addend, std::plus<T>{});
+}
+
+/**
+ * @brief Performs element-wise subtraction with broadcasting.
+ */
+template <typename T>
+ndarray<T> ndarray<T>::sub(const ndarray<T>& subtrahend) const {
+    return broadcast_binary_op(*this, subtrahend, std::minus<T>{});
 }
 
 /**
