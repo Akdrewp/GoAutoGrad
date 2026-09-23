@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from GoTorch.autograd.operations import Add
-from GoTorch.backend.ndarray import NDArray
+from GoTorch.backend.native_backend import NDArray
 
 if TYPE_CHECKING:
     from GoTorch.tensor import Tensor

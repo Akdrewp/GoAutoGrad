@@ -39,7 +39,11 @@ class Sub(Operation):
 
     @classmethod
     def gradient(cls, out_grad: "Tensor", node: "Tensor") -> tuple["Tensor", ...]:
-        raise NotImplementedError
+        # d(A-B)/dA = 1, d(A-B)/dB = -1
+        tensor_cls = node.__class__
+        zeros = tensor_cls(out_grad.data.zeros_like())
+        neg_grad = zeros - out_grad
+        return out_grad, neg_grad
 
 
 class MatMul(Operation):
@@ -61,4 +65,4 @@ class Transpose(Operation):
 
     @classmethod
     def gradient(cls, out_grad: "Tensor", node: "Tensor") -> tuple["Tensor", ...]:
-        raise NotImplementedError
+        return (out_grad.transpose(),)
