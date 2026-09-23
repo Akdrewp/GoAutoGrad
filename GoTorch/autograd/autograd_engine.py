@@ -34,8 +34,11 @@ class AutogradEngine:
             if node.op is None:
                 continue
 
+            tensor_cls = node.__class__
             grad_tensor = (
-                node.grad if isinstance(node.grad, Tensor) else Tensor(node.grad)
+                node.grad
+                if isinstance(node.grad, tensor_cls)
+                else tensor_cls(node.grad)
             )
             parent_grads = node.op.gradient(grad_tensor, node)
             cls._accumulate_parent_gradients(node, parent_grads)
@@ -72,9 +75,9 @@ class AutogradEngine:
             out_grad: Optional external activation gradient. Defaults to tesnor of 1s.
         """
         if out_grad is not None:
-            target.grad = out_grad.data if isinstance(out_grad, Tensor) else out_grad
+            target.grad = getattr(out_grad, "data", out_grad)
         elif target.grad is None:
-            target.grad = NDArray.ones_like(target.data)
+            target.grad = target.data.ones_like()
 
     @classmethod
     def _accumulate_parent_gradients(
@@ -89,7 +92,7 @@ class AutogradEngine:
             parent_grads: Tuple of gradients calculated for each parent input.
         """
         for parent, p_grad in zip(node.inputs, parent_grads):
-            grad_data = p_grad.data if isinstance(p_grad, Tensor) else p_grad
+            grad_data = getattr(p_grad, "data", p_grad)
             if parent.grad is None:
                 parent.grad = grad_data
             else:
