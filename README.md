@@ -6,7 +6,7 @@
 
 ## ✨ Features
 
-- **⚡ High-Performance C++17 Backend (`native_backend`)**:
+- **⚡ High-Performance C++ Backend (`native_backend`)**:
   - Memory-efficient `NDArray` with zero-copy strided views and transpositions.
   - Multi-dimensional NumPy-style broadcasting support.
   - Fast vectorized element-wise addition (`+`), subtraction (`-`), and matrix multiplication (`@`).
@@ -28,23 +28,12 @@
 
 ## 🏗️ Architecture
 
-GoTorch maintains strict unidirectional architectural boundaries:
-
 ```mermaid
 graph TD
     A["GoTorch.nn (Module, Linear, Adam)"] --> B["GoTorch.Tensor (User API)"]
     B --> C["GoTorch.autograd (AutogradEngine, Operations)"]
     C --> D["GoTorch.backend (native_backend / NDArray C++)"]
 ```
-
-### Module Overview
-
-| Module | Location | Description |
-|---|---|---|
-| **C++ Core** | [`GoTorch/backend/cppsrc/`](file:///home/james-paul/AkAutoGrad/GoTorch/backend/cppsrc) | C++17 `ndarray`, storage buffer management, and PyBind11 bindings |
-| **Tensor API** | [`GoTorch/tensor.py`](file:///home/james-paul/AkAutoGrad/GoTorch/tensor.py) | User-facing tensor representation and operator overloads |
-| **Autograd** | [`GoTorch/autograd/`](file:///home/james-paul/AkAutoGrad/GoTorch/autograd) | DAG traversal, gradient accumulation, and local adjoint operations |
-| **Neural Net** | [`GoTorch/nn/`](file:///home/james-paul/AkAutoGrad/GoTorch/nn) | Base `Module`, `Linear` layers, and `Adam` optimizer |
 
 ---
 
