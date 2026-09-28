@@ -349,3 +349,116 @@ TEST_F(ndarray_sub, ShouldThrowExceptionWhenMiddleDimensionMismatches) {
     EXPECT_THROW(a.sub(b), std::invalid_argument);
     EXPECT_THROW(b.sub(a), std::invalid_argument);
 }
+
+class ndarray_relu : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_relu, ShouldKeepPositiveValuesUnchanged) {
+    std::vector<float> a_data = {1.0f, 2.5f, 3.0f, 4.5f};
+    std::vector<size_t> shape = {2, 2};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.relu();
+
+    EXPECT_EQ(result.shape, shape);
+    EXPECT_EQ(result.size(), 4);
+    for (size_t i = 0; i < a_data.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], a_data[i]);
+    }
+}
+
+TEST_F(ndarray_relu, ShouldZeroOutNegativeValues) {
+    std::vector<float> a_data = {-1.0f, -2.5f, -0.1f, -100.0f};
+    std::vector<size_t> shape = {2, 2};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.relu();
+
+    EXPECT_EQ(result.shape, shape);
+    EXPECT_EQ(result.size(), 4);
+    for (size_t i = 0; i < result.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], 0.0f);
+    }
+}
+
+TEST_F(ndarray_relu, ShouldHandleZerosCorrectly) {
+    std::vector<float> a_data = {0.0f, -0.0f, 0.0f};
+    std::vector<size_t> shape = {3};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.relu();
+
+    EXPECT_EQ(result.shape, shape);
+    EXPECT_EQ(result.size(), 3);
+    for (size_t i = 0; i < result.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], 0.0f);
+    }
+}
+
+TEST_F(ndarray_relu, ShouldProperlyHandleMixedValues) {
+    std::vector<float> a_data = {-3.0f, 0.0f, 4.5f, -0.5f, 2.0f, -10.0f};
+    std::vector<size_t> shape = {2, 3};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.relu();
+
+    EXPECT_EQ(result.shape, shape);
+    EXPECT_EQ(result.size(), 6);
+    std::vector<float> expected = {0.0f, 0.0f, 4.5f, 0.0f, 2.0f, 0.0f};
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+TEST_F(ndarray_relu, ShouldPreserveMultidimensionalShapes) {
+    std::vector<float> a_data = {
+        -1.0f, 2.0f,
+        0.0f, -3.0f,
+        4.0f, -5.0f,
+        6.0f, -7.0f,
+        -8.0f, 9.0f,
+        10.0f, -11.0f
+    };
+    std::vector<size_t> shape = {2, 3, 2};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.relu();
+
+    EXPECT_EQ(result.shape, shape);
+    EXPECT_EQ(result.size(), 12);
+    std::vector<float> expected = {
+        0.0f, 2.0f,
+        0.0f, 0.0f,
+        4.0f, 0.0f,
+        6.0f, 0.0f,
+        0.0f, 9.0f,
+        10.0f, 0.0f
+    };
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+TEST_F(ndarray_relu, ShouldHandleNonContiguousTransposedStridedArrays) {
+    std::vector<float> a_data = {1.0f, -2.0f, 3.0f, -4.0f, 5.0f, -6.0f};
+    NDArray a(a_data, {2, 3});
+
+    NDArray transposed = a.transpose(0, 1);
+    EXPECT_FALSE(transposed.is_contiguous());
+
+    NDArray result = transposed.relu();
+
+    std::vector<size_t> expected_shape = {3, 2};
+    EXPECT_EQ(result.shape, expected_shape);
+    EXPECT_EQ(result.size(), 6);
+    EXPECT_TRUE(result.is_contiguous());
+
+    std::vector<float> expected_data = {1.0f, 0.0f, 0.0f, 5.0f, 3.0f, 0.0f};
+    for (size_t i = 0; i < expected_data.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected_data[i]);
+    }
+}
+

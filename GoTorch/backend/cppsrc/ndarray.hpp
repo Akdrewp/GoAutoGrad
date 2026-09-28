@@ -225,6 +225,12 @@ public:
     ndarray matmul(const ndarray& other) const;
 
     /**
+     * @brief Applies element-wise rectified linear unit (ReLU): max(0, x).
+     * @return New ndarray with ReLU applied to each element.
+     */
+    ndarray relu() const;
+
+    /**
      * @brief Returns an array of ones with identical shape and standard strides.
      */
     ndarray ones_like() const {

@@ -392,6 +392,61 @@ ndarray<T> ndarray<T>::matmul(const ndarray<T>& other) const {
     return ndarray<T>(out_data, {m, n});
 }
 
+/**
+ * @brief Applies the rectified linear unit (ReLU) activation element-wise: max(0, x).
+ * 
+ * 1. Checks total number of elements and returns an empty array if size is 0
+ * 2. Validates underlying storage buffer is allocated
+ * 3. Allocates output buffer matching total number of elements
+ * 4. Iterates over elements respecting shape, strides, and offset:
+ *    assigns element if element > 0, else 0
+ * 5. Returns resulting ndarray with matching shape and standard strides
+ * 
+ * On unallocated storage:
+ * Throws std::runtime_error
+ */
+template <typename T>
+ndarray<T> ndarray<T>::relu() const {
+    // 1. Checks total number of elements and returns an empty array if size is 0
+    size_t total_elements = num_elements(shape);
+    if (total_elements == 0) {
+        return ndarray<T>(std::vector<T>{}, shape);
+    }
+    // 2. Validates underlying storage buffer is allocated
+    if (!storage) {
+        throw std::runtime_error("NDArray storage is unallocated");
+    }
+
+    // 3. Allocates output buffer matching total number of elements
+    std::vector<T> out_vec(total_elements);
+
+    // 4. Iterates over elements respecting shape, strides, and offset
+    if (is_contiguous()) {
+        const T* src = storage->data.data() + offset;
+        for (size_t i = 0; i < total_elements; ++i) {
+            out_vec[i] = (src[i] > static_cast<T>(0))
+                         ? src[i] : static_cast<T>(0);
+        }
+    } else {
+        size_t rank = shape.size();
+        std::vector<size_t> coord(rank, 0);
+        const T* src = storage->data.data() + offset;
+        for (size_t i = 0; i < total_elements; ++i) {
+            size_t off = 0;
+            for (size_t d = 0; d < rank; ++d) {
+                off += coord[d] * strides[d];
+            }
+            T val = src[off];
+            out_vec[i] = (val > static_cast<T>(0))
+                         ? val : static_cast<T>(0);
+            advance_coordinate(coord, shape);
+        }
+    }
+
+    // 5. Returns resulting ndarray with matching shape and standard strides
+    return ndarray<T>(out_vec, shape);
+}
+
 // Explicit template instantiations
 template struct Storage<float>;
 template struct Storage<double>;

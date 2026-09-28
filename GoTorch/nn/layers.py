@@ -74,3 +74,4 @@ class Linear(Module):
             result = result + self.bias
 
         return result
+

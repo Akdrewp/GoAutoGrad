@@ -32,3 +32,21 @@ When presented with a stubbed method or class containing algorithmic docstrings:
 1. Implement the internal logic fulfilling the steps exactly.
 2. Raise appropriate exceptions (`ValueError`, `IndexError`) on invalid inputs/mismatches as specified.
 3. Keep the output focused strictly on the requested snippet or file.
+
+## Automation & Testing Workflow
+Whenever any file in `GoTorch/` is modified:
+1. **Lifecycle Hook Execution**: The `PostToolUse` hook in `.agents/hooks.json` automatically:
+   - Runs `make build` if any C++ backend source in `GoTorch/backend/cppsrc/` was touched.
+   - Runs `stubgen` (`make stubs`) to regenerate interface stubs under `tests/stubs/GoTorch/`.
+2. **Subagent Delegation**:
+   - The primary agent MUST delegate test creation and verification to `test-agent` via `invoke_subagent`.
+   - The delegation prompt MUST instruct `test-agent` to:
+     - Inspect the updated contracts in `tests/stubs/GoTorch/` for the modified module(s).
+     - Generate or update tests specifically for the modified module(s).
+     - Run the targeted module tests and any related end-to-end integration tests, skipping unaffected unit tests.
+     - Report back any failures with contract violation details instead of touching `GoTorch/` directly.
+3. **Iterative Fixing**:
+   - If `test-agent` reports failures, the primary agent iterates on the `GoTorch/` implementation to fix the issues until all tests pass.
+
+
+

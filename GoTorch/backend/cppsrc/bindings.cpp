@@ -71,6 +71,7 @@ PYBIND11_MODULE(native_backend, m) {
         })
         .def("transpose", &NDArray::transpose, py::arg("dim0") = 0, py::arg("dim1") = 1)
         .def("matmul", &NDArray::matmul, py::arg("other"))
+        .def("relu", &NDArray::relu)
         .def("is_contiguous", &NDArray::is_contiguous)
         .def("ones_like", &NDArray::ones_like)
         .def("zeros_like", &NDArray::zeros_like)

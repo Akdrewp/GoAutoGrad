@@ -1,0 +1,67 @@
+import collections.abc
+import typing
+from typing import overload
+
+__backend_type__: str
+
+class NDArray:
+    @overload
+    def __init__(self) -> None:
+        """__init__(*args, **kwargs)
+        Overloaded function.
+
+        1. __init__(self: GoTorch.backend.native_backend.NDArray) -> None
+
+        2. __init__(self: GoTorch.backend.native_backend.NDArray, data: collections.abc.Sequence[typing.SupportsFloat | typing.SupportsIndex], shape: collections.abc.Sequence[typing.SupportsInt | typing.SupportsIndex], strides: collections.abc.Sequence[typing.SupportsInt | typing.SupportsIndex] = [], offset: typing.SupportsInt | typing.SupportsIndex = 0) -> None
+        """
+    @overload
+    def __init__(self, data: collections.abc.Sequence[typing.SupportsFloat | typing.SupportsIndex], shape: collections.abc.Sequence[typing.SupportsInt | typing.SupportsIndex], strides: collections.abc.Sequence[typing.SupportsInt | typing.SupportsIndex] = ..., offset: typing.SupportsInt | typing.SupportsIndex = ...) -> None:
+        """__init__(*args, **kwargs)
+        Overloaded function.
+
+        1. __init__(self: GoTorch.backend.native_backend.NDArray) -> None
+
+        2. __init__(self: GoTorch.backend.native_backend.NDArray, data: collections.abc.Sequence[typing.SupportsFloat | typing.SupportsIndex], shape: collections.abc.Sequence[typing.SupportsInt | typing.SupportsIndex], strides: collections.abc.Sequence[typing.SupportsInt | typing.SupportsIndex] = [], offset: typing.SupportsInt | typing.SupportsIndex = 0) -> None
+        """
+    def add(self, addend: NDArray) -> NDArray:
+        """add(self: GoTorch.backend.native_backend.NDArray, addend: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def is_contiguous(self) -> bool:
+        """is_contiguous(self: GoTorch.backend.native_backend.NDArray) -> bool"""
+    def matmul(self, other: NDArray) -> NDArray:
+        """matmul(self: GoTorch.backend.native_backend.NDArray, other: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def ones_like(self) -> NDArray:
+        """ones_like(self: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def relu(self) -> NDArray:
+        """relu(self: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def size(self) -> int:
+        """size(self: GoTorch.backend.native_backend.NDArray) -> int"""
+    def sub(self, subtrahend: NDArray) -> NDArray:
+        """sub(self: GoTorch.backend.native_backend.NDArray, subtrahend: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def transpose(self, dim0: typing.SupportsInt | typing.SupportsIndex = ..., dim1: typing.SupportsInt | typing.SupportsIndex = ...) -> NDArray:
+        """transpose(self: GoTorch.backend.native_backend.NDArray, dim0: typing.SupportsInt | typing.SupportsIndex = 0, dim1: typing.SupportsInt | typing.SupportsIndex = 1) -> GoTorch.backend.native_backend.NDArray"""
+    def zeros_like(self) -> NDArray:
+        """zeros_like(self: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def __add__(self, arg0: object) -> object:
+        """__add__(self: GoTorch.backend.native_backend.NDArray, arg0: object) -> object"""
+    def __getitem__(self, arg0: object) -> float:
+        """__getitem__(self: GoTorch.backend.native_backend.NDArray, arg0: object) -> float"""
+    def __radd__(self, arg0: object) -> object:
+        """__radd__(self: GoTorch.backend.native_backend.NDArray, arg0: object) -> object"""
+    def __rsub__(self, arg0: object) -> object:
+        """__rsub__(self: GoTorch.backend.native_backend.NDArray, arg0: object) -> object"""
+    def __setitem__(self, arg0: object, arg1: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        """__setitem__(self: GoTorch.backend.native_backend.NDArray, arg0: object, arg1: typing.SupportsFloat | typing.SupportsIndex) -> None"""
+    def __sub__(self, arg0: object) -> object:
+        """__sub__(self: GoTorch.backend.native_backend.NDArray, arg0: object) -> object"""
+    @property
+    def data(self) -> list[float]:
+        """(arg0: GoTorch.backend.native_backend.NDArray) -> list[float]"""
+    @property
+    def offset(self) -> int:
+        """(arg0: GoTorch.backend.native_backend.NDArray) -> int"""
+    @property
+    def shape(self) -> tuple:
+        """(arg0: GoTorch.backend.native_backend.NDArray) -> tuple"""
+    @property
+    def strides(self) -> tuple:
+        """(arg0: GoTorch.backend.native_backend.NDArray) -> tuple"""

@@ -61,3 +61,73 @@ class TestNDArrayAdd:
         a = backend.NDArray(data=[1.0, 2.0], shape=(2,))
         with pytest.raises(TypeError):
             _ = a + 42
+
+
+class TestNDArrayRelu:
+    """Verifies rectified linear unit (ReLU) activation behavior."""
+
+    def test_relu_positive_values(self, backend) -> None:
+        """Positive numbers should remain unchanged."""
+        a = backend.NDArray(data=[1.0, 2.5, 3.0, 4.5], shape=(2, 2))
+        res = a.relu()
+        assert res.shape == (2, 2)
+        assert list(res.data) == [1.0, 2.5, 3.0, 4.5]
+
+    def test_relu_negative_values(self, backend) -> None:
+        """Negative numbers should be zeroed out."""
+        a = backend.NDArray(data=[-1.0, -2.5, -0.1, -100.0], shape=(2, 2))
+        res = a.relu()
+        assert res.shape == (2, 2)
+        assert list(res.data) == [0.0, 0.0, 0.0, 0.0]
+
+    def test_relu_zeros(self, backend) -> None:
+        """Zeros should remain zero."""
+        a = backend.NDArray(data=[0.0, 0.0, 0.0], shape=(3,))
+        res = a.relu()
+        assert res.shape == (3,)
+        assert list(res.data) == [0.0, 0.0, 0.0]
+
+    def test_relu_mixed_values_multidimensional(self, backend) -> None:
+        """Mixed positive, negative, and zero values with 3D shape."""
+        data = [
+            -1.0, 2.0,
+            0.0, -3.0,
+            4.0, -5.0,
+            6.0, -7.0,
+            -8.0, 9.0,
+            10.0, -11.0,
+        ]
+        a = backend.NDArray(data=data, shape=(2, 3, 2))
+        res = a.relu()
+        assert res.shape == (2, 3, 2)
+        expected = [
+            0.0, 2.0,
+            0.0, 0.0,
+            4.0, 0.0,
+            6.0, 0.0,
+            0.0, 9.0,
+            10.0, 0.0,
+        ]
+        assert list(res.data) == expected
+
+    def test_relu_strided_non_contiguous(self, backend) -> None:
+        """Tests relu on a non-contiguous transposed view."""
+        a = backend.NDArray(data=[1.0, -2.0, 3.0, -4.0, 5.0, -6.0], shape=(2, 3)).transpose()
+        assert not a.is_contiguous()
+        res = a.relu()
+        assert res.shape == (3, 2)
+        assert res.is_contiguous()
+        assert list(res.data) == [1.0, 0.0, 0.0, 5.0, 3.0, 0.0]
+
+    def test_relu_preserves_shape(self, backend) -> None:
+        """Ensures arbitrary shapes (e.g. 1D, 4D) are preserved after relu."""
+        a_1d = backend.NDArray(data=[-1.0, 1.0], shape=(2,))
+        assert a_1d.relu().shape == (2,)
+
+        shape_4d = (1, 2, 1, 3)
+        data_4d = [-1.0, 2.0, -3.0, 4.0, -5.0, 6.0]
+        a_4d = backend.NDArray(data=data_4d, shape=shape_4d)
+        res_4d = a_4d.relu()
+        assert res_4d.shape == shape_4d
+        assert list(res_4d.data) == [0.0, 2.0, 0.0, 4.0, 0.0, 6.0]
+

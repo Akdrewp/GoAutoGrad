@@ -14,7 +14,7 @@ GTEST_DIR := $(BUILD_DIR)/gtest
 INCLUDES := -I$(CPP_SRC_DIR) -isystem $(GTEST_DIR)/src/googletest/include
 LDFLAGS := -pthread
 
-.PHONY: all build test-cpp test-specific clean gtest help
+.PHONY: all build test-cpp test-specific clean gtest help stubs
 
 all: build
 
@@ -80,11 +80,17 @@ clean:
 	@rm -f $(ROOT_DIR)/GoTorch/backend/native_backend*.so
 	@echo "Done."
 
-# 7. Help
+# 7. Generate Python type stubs using stubgen
+stubs:
+	@echo "==> Generating type stubs in tests/stubs..."
+	./.venv/bin/stubgen -p GoTorch -o tests/stubs --include-docstrings
+
+# 8. Help
 help:
 	@echo "Available commands:"
 	@echo "  make build                     Build native C++ backend extension"
 	@echo "  make test-cpp                  Run all C++ tests"
 	@echo "  make test-cpp TEST=<name>      Run specific C++ test matching pattern"
 	@echo "  make test-specific TEST=<name> Run specific C++ test"
+	@echo "  make stubs                     Generate Python type stubs via stubgen"
 	@echo "  make clean                     Remove build artifacts"
