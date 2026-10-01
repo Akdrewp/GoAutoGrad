@@ -1,0 +1,16 @@
+{
+  "gotorch-sync": {
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f hooks/sync_gotorch.py ] && python3 hooks/sync_gotorch.py || python3 .agents/hooks/sync_gotorch.py",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

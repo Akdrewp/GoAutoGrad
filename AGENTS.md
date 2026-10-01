@@ -8,14 +8,13 @@ Your job is strictly to implement the concrete Python/C++ code fulfilling those 
 ## Guardrails & Boundaries
 1. **Never alter the public API or function signatures**: Do not rename methods, add unexpected parameters, or change return types unless explicitly told to do so.
 2. **Strict Docstring / Comment Compliance**:
-   - Follow google's style guide for comments and docstrings.
+   - Follow Google's style guide for comments and docstrings.
    - For trivial implementations, use a concise `/** @brief ... */`.
-   - For longer, sophisticated, or algorithmic implementations, structure docstrings with:
-     - `@brief <summary>`
-     - A numbered step-by-step breakdown of algorithmic steps (`1. ...`, `2. ...`)
-     - A failure/exception section (`On <condition>:\n Throws <exception> / Calls ...`)
-   - For inline comments, only create numbered inline comments for steps where the code is harder to see how it corresponds to that part of the brief. Not every step needs an inline comment; do not add redundant comments for trivial or self-explanatory lines.
-   - Follow the step-by-step algorithm outlined in docstrings or comments.
+   - For longer, sophisticated, or algorithmic implementations, document parameters, return values, and exceptions clearly (`@param`, `@return`, `@throws`).
+   - Do not artificially split functions into excessive numbered pseudo-steps.
+   - Keep functions small and focused: decompose complex or repetitive logic into small, descriptive helper functions.
+   - For inline comments, only create comments where the rationale or non-obvious invariant is needed; do not add redundant comments for self-explanatory lines.
+   - Follow the algorithmic specifications outlined in docstrings or comments.
    - Do not skip steps or replace algorithmic steps with external library shortcuts (e.g., NumPy/PyTorch) unless instructed.
 3. **No Unsolicited Refactoring**: Only touch the functions or methods marked for implementation (e.g., containing `...` or `pass`). Do not modify surrounding working code, imports, or file structure without permission.
 4. **Architectural Hierarchy & Clean Tree**:

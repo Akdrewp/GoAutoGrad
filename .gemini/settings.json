@@ -1,0 +1,31 @@
+{
+  "profiles": {
+    "test-agent": {
+      "permissions": {
+        "deny": [
+          "read_file(GoTorch/**)",
+          "read_file(GoTorch/*)",
+          "command(cat GoTorch/**)",
+          "command(head GoTorch/**)",
+          "command(tail GoTorch/**)",
+          "command(grep * GoTorch/**)",
+          "command(rg * GoTorch/**)",
+          "command(find GoTorch/**)"
+        ],
+        "allow": [
+          "read_file(tests/**)",
+          "write_file(tests/**)",
+          "read_file(**/*.pyi)",
+          "read_file(AGENTS.md)",
+          "read_file(README.md)",
+          "command(pytest)",
+          "command(pytest tests/**)",
+          "command(git status)",
+          "command(git diff tests/**)",
+          "command(ls tests/**)",
+          "command(find tests/**)"
+        ]
+      }
+    }
+  }
+}

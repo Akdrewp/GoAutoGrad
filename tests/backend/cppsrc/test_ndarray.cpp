@@ -462,3 +462,500 @@ TEST_F(ndarray_relu, ShouldHandleNonContiguousTransposedStridedArrays) {
     }
 }
 
+class ndarray_relu_backward : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_relu_backward, ShouldComputeGradientForPositiveAndNegativeValues) {
+    std::vector<float> a_data = {-2.0f, -0.5f, 0.0f, 1.0f, 3.0f, 5.0f};
+    std::vector<float> grad_data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    std::vector<size_t> shape = {2, 3};
+    NDArray a(a_data, shape);
+    NDArray grad(grad_data, shape);
+
+    NDArray result = a.relu_backward(grad);
+
+    EXPECT_EQ(result.shape, shape);
+    EXPECT_EQ(result.size(), 6);
+    std::vector<float> expected = {0.0f, 0.0f, 0.0f, 4.0f, 5.0f, 6.0f};
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+TEST_F(ndarray_relu_backward, ShouldThrowExceptionWhenGradientShapeMismatches) {
+    NDArray a(std::vector<float>{1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+    NDArray grad(std::vector<float>{1.0f, 2.0f, 3.0f}, {3});
+
+    EXPECT_THROW(a.relu_backward(grad), std::invalid_argument);
+}
+
+TEST_F(ndarray_relu_backward, ShouldHandleNonContiguousTransposedStridedArrays) {
+    std::vector<float> a_data = {1.0f, -2.0f, 3.0f, -4.0f, 5.0f, -6.0f};
+    NDArray a(a_data, {2, 3});
+    NDArray a_t = a.transpose(0, 1);
+    EXPECT_FALSE(a_t.is_contiguous());
+
+    std::vector<float> grad_data = {10.0f, 20.0f, 30.0f, 40.0f, 50.0f, 60.0f};
+    NDArray grad(grad_data, {3, 2});
+
+    NDArray result = a_t.relu_backward(grad);
+
+    std::vector<size_t> expected_shape = {3, 2};
+    EXPECT_EQ(result.shape, expected_shape);
+    EXPECT_TRUE(result.is_contiguous());
+    // a_t elements: [1.0, -4.0, -2.0, 5.0, 3.0, -6.0]
+    // grad elements: [10.0, 20.0, 30.0, 40.0, 50.0, 60.0]
+    std::vector<float> expected = {10.0f, 0.0f, 0.0f, 40.0f, 50.0f, 0.0f};
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+class ndarray_tanh : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_tanh, ShouldEvaluateTanhCorrectly) {
+    std::vector<float> a_data = {-2.0f, -1.0f, 0.0f, 1.0f, 2.0f};
+    std::vector<size_t> shape = {5};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.tanh();
+
+    EXPECT_EQ(result.shape, shape);
+    EXPECT_EQ(result.size(), 5);
+    for (size_t i = 0; i < a_data.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], std::tanh(a_data[i]));
+    }
+}
+
+TEST_F(ndarray_tanh, ShouldSatisfyOddSymmetry) {
+    NDArray a(std::vector<float>{-3.0f, -1.5f, 0.5f, 2.0f}, {2, 2});
+    NDArray neg_a(std::vector<float>{3.0f, 1.5f, -0.5f, -2.0f}, {2, 2});
+
+    NDArray res = a.tanh();
+    NDArray res_neg = neg_a.tanh();
+
+    for (size_t i = 0; i < res.size(); ++i) {
+        EXPECT_FLOAT_EQ(res[i], -res_neg[i]);
+    }
+}
+
+TEST_F(ndarray_tanh, ShouldSaturateForExtremeValues) {
+    NDArray a(std::vector<float>{-40.0f, 40.0f}, {2});
+    NDArray result = a.tanh();
+
+    EXPECT_FLOAT_EQ(result[0], -1.0f);
+    EXPECT_FLOAT_EQ(result[1], 1.0f);
+}
+
+TEST_F(ndarray_tanh, ShouldPreserveMultidimensionalShapes) {
+    std::vector<float> a_data(12, 0.5f);
+    std::vector<size_t> shape = {2, 3, 2};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.tanh();
+    EXPECT_EQ(result.shape, shape);
+    EXPECT_EQ(result.size(), 12);
+}
+
+TEST_F(ndarray_tanh, ShouldHandleNonContiguousTransposedStridedArrays) {
+    std::vector<float> a_data = {0.0f, 1.0f, 2.0f, -1.0f, -2.0f, 0.5f};
+    NDArray a(a_data, {2, 3});
+    NDArray a_t = a.transpose(0, 1);
+    EXPECT_FALSE(a_t.is_contiguous());
+
+    NDArray result = a_t.tanh();
+    EXPECT_EQ(result.shape, (std::vector<size_t>{3, 2}));
+    EXPECT_TRUE(result.is_contiguous());
+
+    // a_t elements: [0.0, -1.0, 1.0, -2.0, 2.0, 0.5]
+    std::vector<float> expected = {
+        std::tanh(0.0f), std::tanh(-1.0f),
+        std::tanh(1.0f), std::tanh(-2.0f),
+        std::tanh(2.0f), std::tanh(0.5f)
+    };
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+class ndarray_tanh_backward : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_tanh_backward, ShouldComputeGradientCorrectly) {
+    std::vector<float> a_data = {-2.0f, 0.0f, 1.5f};
+    std::vector<float> grad_data = {2.0f, 3.0f, 4.0f};
+    std::vector<size_t> shape = {3};
+    NDArray a(a_data, shape);
+    NDArray grad(grad_data, shape);
+
+    NDArray result = a.tanh_backward(grad);
+
+    EXPECT_EQ(result.shape, shape);
+    // d/dx tanh(x) = (1 - tanh^2(x)) * grad
+    for (size_t i = 0; i < a_data.size(); ++i) {
+        float t = std::tanh(a_data[i]);
+        float expected = (1.0f - t * t) * grad_data[i];
+        EXPECT_FLOAT_EQ(result[i], expected);
+    }
+}
+
+TEST_F(ndarray_tanh_backward, ShouldThrowExceptionWhenGradientShapeMismatches) {
+    NDArray a(std::vector<float>{1.0f, 2.0f}, {2});
+    NDArray grad(std::vector<float>{1.0f, 2.0f, 3.0f}, {3});
+
+    EXPECT_THROW(a.tanh_backward(grad), std::invalid_argument);
+}
+
+TEST_F(ndarray_tanh_backward, ShouldHandleNonContiguousTransposedStridedArrays) {
+    std::vector<float> a_data = {0.0f, 1.0f, -1.0f, 2.0f};
+    NDArray a(a_data, {2, 2});
+    NDArray a_t = a.transpose(0, 1);
+
+    NDArray grad(std::vector<float>{1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+    NDArray result = a_t.tanh_backward(grad);
+
+    EXPECT_EQ(result.shape, (std::vector<size_t>{2, 2}));
+    EXPECT_TRUE(result.is_contiguous());
+
+    // a_t: [0.0, -1.0, 1.0, 2.0]
+    std::vector<float> at_vals = {0.0f, -1.0f, 1.0f, 2.0f};
+    std::vector<float> g_vals = {1.0f, 2.0f, 3.0f, 4.0f};
+    for (size_t i = 0; i < 4; ++i) {
+        float t = std::tanh(at_vals[i]);
+        EXPECT_FLOAT_EQ(result[i], (1.0f - t * t) * g_vals[i]);
+    }
+}
+
+class ndarray_sigmoid : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_sigmoid, ShouldEvaluateSigmoidCorrectly) {
+    std::vector<float> a_data = {-2.0f, -1.0f, 0.0f, 1.0f, 2.0f};
+    std::vector<size_t> shape = {5};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.sigmoid();
+
+    EXPECT_EQ(result.shape, shape);
+    EXPECT_EQ(result.size(), 5);
+    for (size_t i = 0; i < a_data.size(); ++i) {
+        float s = 1.0f / (1.0f + std::exp(-a_data[i]));
+        EXPECT_FLOAT_EQ(result[i], s);
+    }
+}
+
+TEST_F(ndarray_sigmoid, ShouldSatisfySymmetry) {
+    NDArray a(std::vector<float>{-3.0f, -1.5f, 0.5f, 2.0f}, {2, 2});
+    NDArray neg_a(std::vector<float>{3.0f, 1.5f, -0.5f, -2.0f}, {2, 2});
+
+    NDArray res = a.sigmoid();
+    NDArray res_neg = neg_a.sigmoid();
+
+    // sigma(-x) == 1 - sigma(x)
+    for (size_t i = 0; i < res.size(); ++i) {
+        EXPECT_NEAR(res[i] + res_neg[i], 1.0f, 1e-6f);
+    }
+}
+
+TEST_F(ndarray_sigmoid, ShouldSaturateForExtremeValues) {
+    NDArray a(std::vector<float>{-50.0f, 50.0f}, {2});
+    NDArray result = a.sigmoid();
+
+    EXPECT_NEAR(result[0], 0.0f, 1e-6f);
+    EXPECT_FLOAT_EQ(result[1], 1.0f);
+}
+
+TEST_F(ndarray_sigmoid, ShouldPreserveMultidimensionalShapes) {
+    std::vector<float> a_data(8, 0.1f);
+    std::vector<size_t> shape = {2, 2, 2};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.sigmoid();
+    EXPECT_EQ(result.shape, shape);
+    EXPECT_EQ(result.size(), 8);
+}
+
+TEST_F(ndarray_sigmoid, ShouldHandleNonContiguousTransposedStridedArrays) {
+    std::vector<float> a_data = {0.0f, 1.0f, 2.0f, -1.0f, -2.0f, 0.5f};
+    NDArray a(a_data, {2, 3});
+    NDArray a_t = a.transpose(0, 1);
+    EXPECT_FALSE(a_t.is_contiguous());
+
+    NDArray result = a_t.sigmoid();
+    EXPECT_EQ(result.shape, (std::vector<size_t>{3, 2}));
+    EXPECT_TRUE(result.is_contiguous());
+
+    std::vector<float> expected = {
+        1.0f / (1.0f + std::exp(-0.0f)),
+        1.0f / (1.0f + std::exp(1.0f)),
+        1.0f / (1.0f + std::exp(-1.0f)),
+        1.0f / (1.0f + std::exp(2.0f)),
+        1.0f / (1.0f + std::exp(-2.0f)),
+        1.0f / (1.0f + std::exp(-0.5f))
+    };
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+class ndarray_sigmoid_backward : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_sigmoid_backward, ShouldComputeGradientCorrectly) {
+    std::vector<float> a_data = {-2.0f, 0.0f, 2.0f};
+    std::vector<float> grad_data = {1.5f, 2.5f, 3.5f};
+    std::vector<size_t> shape = {3};
+    NDArray a(a_data, shape);
+    NDArray grad(grad_data, shape);
+
+    NDArray result = a.sigmoid_backward(grad);
+
+    EXPECT_EQ(result.shape, shape);
+    // d/dx sigmoid(x) = sigmoid(x) * (1 - sigmoid(x)) * grad
+    for (size_t i = 0; i < a_data.size(); ++i) {
+        float s = 1.0f / (1.0f + std::exp(-a_data[i]));
+        float expected = s * (1.0f - s) * grad_data[i];
+        EXPECT_FLOAT_EQ(result[i], expected);
+    }
+}
+
+TEST_F(ndarray_sigmoid_backward, ShouldThrowExceptionWhenGradientShapeMismatches) {
+    NDArray a(std::vector<float>{1.0f, 2.0f}, {2});
+    NDArray grad(std::vector<float>{1.0f, 2.0f, 3.0f}, {3});
+
+    EXPECT_THROW(a.sigmoid_backward(grad), std::invalid_argument);
+}
+
+TEST_F(ndarray_sigmoid_backward, ShouldHandleNonContiguousTransposedStridedArrays) {
+    std::vector<float> a_data = {0.0f, 1.0f, -1.0f, 2.0f};
+    NDArray a(a_data, {2, 2});
+    NDArray a_t = a.transpose(0, 1);
+
+    NDArray grad(std::vector<float>{1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+    NDArray result = a_t.sigmoid_backward(grad);
+
+    EXPECT_EQ(result.shape, (std::vector<size_t>{2, 2}));
+    EXPECT_TRUE(result.is_contiguous());
+
+    std::vector<float> at_vals = {0.0f, -1.0f, 1.0f, 2.0f};
+    std::vector<float> g_vals = {1.0f, 2.0f, 3.0f, 4.0f};
+    for (size_t i = 0; i < 4; ++i) {
+        float s = 1.0f / (1.0f + std::exp(-at_vals[i]));
+        EXPECT_FLOAT_EQ(result[i], s * (1.0f - s) * g_vals[i]);
+    }
+}
+
+class ndarray_leaky_relu : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_leaky_relu, ShouldApplyDefaultAlpha) {
+    std::vector<float> a_data = {-200.0f, -10.0f, 0.0f, 5.0f, 10.0f};
+    std::vector<size_t> shape = {5};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.leaky_relu();
+
+    EXPECT_EQ(result.shape, shape);
+    std::vector<float> expected = {-2.0f, -0.1f, 0.0f, 5.0f, 10.0f};
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+TEST_F(ndarray_leaky_relu, ShouldApplyCustomAlpha) {
+    std::vector<float> a_data = {-10.0f, -5.0f, 0.0f, 4.0f};
+    std::vector<size_t> shape = {2, 2};
+    NDArray a(a_data, shape);
+
+    float alpha = 0.2f;
+    NDArray result = a.leaky_relu(alpha);
+
+    EXPECT_EQ(result.shape, shape);
+    std::vector<float> expected = {-2.0f, -1.0f, 0.0f, 4.0f};
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+TEST_F(ndarray_leaky_relu, ShouldPreserveMultidimensionalShapes) {
+    std::vector<float> a_data(12, -2.0f);
+    std::vector<size_t> shape = {2, 3, 2};
+    NDArray a(a_data, shape);
+
+    NDArray result = a.leaky_relu(0.1f);
+    EXPECT_EQ(result.shape, shape);
+    for (size_t i = 0; i < 12; ++i) {
+        EXPECT_FLOAT_EQ(result[i], -0.2f);
+    }
+}
+
+TEST_F(ndarray_leaky_relu, ShouldHandleNonContiguousTransposedStridedArrays) {
+    std::vector<float> a_data = {10.0f, -20.0f, 30.0f, -40.0f, 50.0f, -60.0f};
+    NDArray a(a_data, {2, 3});
+    NDArray a_t = a.transpose(0, 1);
+    EXPECT_FALSE(a_t.is_contiguous());
+
+    NDArray result = a_t.leaky_relu(0.1f);
+    EXPECT_EQ(result.shape, (std::vector<size_t>{3, 2}));
+    EXPECT_TRUE(result.is_contiguous());
+
+    // a_t elements: [10.0, -40.0, -20.0, 50.0, 30.0, -60.0]
+    std::vector<float> expected = {10.0f, -4.0f, -2.0f, 50.0f, 30.0f, -6.0f};
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+class ndarray_leaky_relu_backward : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_leaky_relu_backward, ShouldComputeGradientWithDefaultAlpha) {
+    std::vector<float> a_data = {-2.0f, -0.5f, 0.0f, 1.0f, 3.0f};
+    std::vector<float> grad_data = {10.0f, 20.0f, 30.0f, 40.0f, 50.0f};
+    std::vector<size_t> shape = {5};
+    NDArray a(a_data, shape);
+    NDArray grad(grad_data, shape);
+
+    NDArray result = a.leaky_relu_backward(grad);
+
+    EXPECT_EQ(result.shape, shape);
+    // x > 0: grad, x <= 0: 0.01 * grad
+    std::vector<float> expected = {0.1f, 0.2f, 0.3f, 40.0f, 50.0f};
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+TEST_F(ndarray_leaky_relu_backward, ShouldComputeGradientWithCustomAlpha) {
+    std::vector<float> a_data = {-2.0f, 0.0f, 3.0f};
+    std::vector<float> grad_data = {10.0f, 20.0f, 30.0f};
+    std::vector<size_t> shape = {3};
+    NDArray a(a_data, shape);
+    NDArray grad(grad_data, shape);
+
+    float alpha = 0.25f;
+    NDArray result = a.leaky_relu_backward(grad, alpha);
+
+    EXPECT_EQ(result.shape, shape);
+    std::vector<float> expected = {2.5f, 5.0f, 30.0f};
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+TEST_F(ndarray_leaky_relu_backward, ShouldThrowExceptionWhenGradientShapeMismatches) {
+    NDArray a(std::vector<float>{1.0f, 2.0f}, {2});
+    NDArray grad(std::vector<float>{1.0f, 2.0f, 3.0f}, {3});
+
+    EXPECT_THROW(a.leaky_relu_backward(grad), std::invalid_argument);
+}
+
+TEST_F(ndarray_leaky_relu_backward, ShouldHandleNonContiguousTransposedStridedArrays) {
+    std::vector<float> a_data = {1.0f, -2.0f, 3.0f, -4.0f};
+    NDArray a(a_data, {2, 2});
+    NDArray a_t = a.transpose(0, 1);
+
+    NDArray grad(std::vector<float>{10.0f, 20.0f, 30.0f, 40.0f}, {2, 2});
+    NDArray result = a_t.leaky_relu_backward(grad, 0.1f);
+
+    EXPECT_EQ(result.shape, (std::vector<size_t>{2, 2}));
+    EXPECT_TRUE(result.is_contiguous());
+
+    // a_t: [1.0, 3.0, -2.0, -4.0]
+    // grad: [10.0, 20.0, 30.0, 40.0]
+    std::vector<float> expected = {10.0f, 20.0f, 3.0f, 4.0f};
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_FLOAT_EQ(result[i], expected[i]);
+    }
+}
+
+class ndarray_isEmpty : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_isEmpty, ShouldReturnTrueForDefaultConstructedNDArray) {
+    // Uninitialized storage
+    NDArray a;
+    EXPECT_TRUE(a.isEmpty());
+}
+
+TEST_F(ndarray_isEmpty, ShouldReturnTrueForInitializedEmptyStorage) {
+    // Initialized empty storage (0 total elements)
+    NDArray a(std::vector<float>{}, {0});
+    EXPECT_TRUE(a.isEmpty());
+}
+
+TEST_F(ndarray_isEmpty, ShouldReturnFalseForInitializedNonEmptyStorage) {
+    // Initialized non-empty storage
+    NDArray a(std::vector<float>{1.0f, 2.0f}, {2});
+    EXPECT_FALSE(a.isEmpty());
+}
+
+TEST_F(ndarray_isEmpty, ShouldReturnFalseForScalarNDArray) {
+    // 0-D scalar has 1 element, hence not empty
+    NDArray a(std::vector<float>{42.0f}, {});
+    EXPECT_FALSE(a.isEmpty());
+}
+
+class ndarray_scalar : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_scalar, ShouldRepresentZeroDScalarWithEmptyShapeAndOneElement) {
+    NDArray s(std::vector<float>{3.14f}, {});
+    EXPECT_EQ(s.shape, (std::vector<size_t>{}));
+    EXPECT_EQ(s.size(), 1);
+    EXPECT_FLOAT_EQ(s[0], 3.14f);
+    EXPECT_FALSE(s.isEmpty());
+}
+
+TEST_F(ndarray_scalar, ShouldPerformAdditionBetweenScalars) {
+    NDArray s1(std::vector<float>{2.5f}, {});
+    NDArray s2(std::vector<float>{3.5f}, {});
+    NDArray res = s1.add(s2);
+    EXPECT_EQ(res.shape, (std::vector<size_t>{}));
+    EXPECT_EQ(res.size(), 1);
+    EXPECT_FLOAT_EQ(res[0], 6.0f);
+}
+
+TEST_F(ndarray_scalar, ShouldApplyActivationsToScalar) {
+    NDArray s(std::vector<float>{-2.0f}, {});
+    EXPECT_FLOAT_EQ(s.relu()[0], 0.0f);
+    EXPECT_FLOAT_EQ(s.tanh()[0], std::tanh(-2.0f));
+    EXPECT_FLOAT_EQ(s.sigmoid()[0], 1.0f / (1.0f + std::exp(2.0f)));
+    EXPECT_FLOAT_EQ(s.leaky_relu(0.1f)[0], -0.2f);
+
+    NDArray grad(std::vector<float>{5.0f}, {});
+    EXPECT_FLOAT_EQ(s.relu_backward(grad)[0], 0.0f);
+    EXPECT_FLOAT_EQ(s.leaky_relu_backward(grad, 0.1f)[0], 0.5f);
+}
+
+
+
+

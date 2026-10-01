@@ -41,13 +41,11 @@ public:
 
     /**
      * @brief Calculates total number of elements in a given shape.
+     * Empty shapes represent 0-D scalars and have 1 element.
      * @param shape Shape dimensions.
      * @return Total element count.
      */
     static size_t num_elements(const std::vector<size_t>& shape) {
-        if (shape.empty()) {
-            return 0;
-        }
         size_t total = 1;
         for (size_t dim : shape) {
             total *= dim;
@@ -231,6 +229,58 @@ public:
     ndarray relu() const;
 
     /**
+     * @brief Computes gradient for ReLU activation element-wise: grad_out * (x > 0 ? 1 : 0).
+     * @param grad_output Incoming upstream gradient array.
+     * @return New ndarray containing the computed gradients.
+     * @throws std::invalid_argument If grad_output shape does not match array shape.
+     */
+    ndarray relu_backward(const ndarray& grad_output) const;
+
+    /**
+     * @brief Applies element-wise hyperbolic tangent (tanh).
+     * @return New ndarray with tanh applied to each element.
+     */
+    ndarray tanh() const;
+
+    /**
+     * @brief Computes gradient for tanh activation element-wise: grad_out * (1 - tanh(x)^2).
+     * @param grad_output Incoming upstream gradient array.
+     * @return New ndarray containing the computed gradients.
+     * @throws std::invalid_argument If grad_output shape does not match array shape.
+     */
+    ndarray tanh_backward(const ndarray& grad_output) const;
+
+    /**
+     * @brief Applies element-wise sigmoid activation: 1 / (1 + exp(-x)).
+     * @return New ndarray with sigmoid applied to each element.
+     */
+    ndarray sigmoid() const;
+
+    /**
+     * @brief Computes gradient for sigmoid activation element-wise: grad_out * sigmoid(x) * (1 - sigmoid(x)).
+     * @param grad_output Incoming upstream gradient array.
+     * @return New ndarray containing the computed gradients.
+     * @throws std::invalid_argument If grad_output shape does not match array shape.
+     */
+    ndarray sigmoid_backward(const ndarray& grad_output) const;
+
+    /**
+     * @brief Applies element-wise leaky rectified linear unit (LeakyReLU): x if x > 0 else alpha * x.
+     * @param alpha Slope for negative inputs. Defaults to 0.01.
+     * @return New ndarray with LeakyReLU applied to each element.
+     */
+    ndarray leaky_relu(T alpha = static_cast<T>(0.01)) const;
+
+    /**
+     * @brief Computes gradient for LeakyReLU activation element-wise: grad_out * (x > 0 ? 1 : alpha).
+     * @param grad_output Incoming upstream gradient array.
+     * @param alpha Slope for negative inputs. Defaults to 0.01.
+     * @return New ndarray containing the computed gradients.
+     * @throws std::invalid_argument If grad_output shape does not match array shape.
+     */
+    ndarray leaky_relu_backward(const ndarray& grad_output, T alpha = static_cast<T>(0.01)) const;
+
+    /**
      * @brief Returns an array of ones with identical shape and standard strides.
      */
     ndarray ones_like() const {
@@ -282,6 +332,14 @@ public:
      */
     size_t size() const {
         return num_elements(shape);
+    }
+
+    /**
+     * @brief Checks whether the storage is uninitialized or contains zero elements.
+     * @return True if storage is null or data is empty; false if storage is initialized and has elements.
+     */
+    bool isEmpty() const {
+        return !storage || storage->data.empty();
     }
 
     /**

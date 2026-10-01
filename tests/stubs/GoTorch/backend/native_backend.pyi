@@ -25,18 +25,34 @@ class NDArray:
         """
     def add(self, addend: NDArray) -> NDArray:
         """add(self: GoTorch.backend.native_backend.NDArray, addend: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def isEmpty(self) -> bool:
+        """isEmpty(self: GoTorch.backend.native_backend.NDArray) -> bool"""
     def is_contiguous(self) -> bool:
         """is_contiguous(self: GoTorch.backend.native_backend.NDArray) -> bool"""
+    def leaky_relu(self, alpha: typing.SupportsFloat | typing.SupportsIndex = ...) -> NDArray:
+        """leaky_relu(self: GoTorch.backend.native_backend.NDArray, alpha: typing.SupportsFloat | typing.SupportsIndex = 0.009999999776482582) -> GoTorch.backend.native_backend.NDArray"""
+    def leaky_relu_backward(self, grad_output: NDArray, alpha: typing.SupportsFloat | typing.SupportsIndex = ...) -> NDArray:
+        """leaky_relu_backward(self: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray, alpha: typing.SupportsFloat | typing.SupportsIndex = 0.009999999776482582) -> GoTorch.backend.native_backend.NDArray"""
     def matmul(self, other: NDArray) -> NDArray:
         """matmul(self: GoTorch.backend.native_backend.NDArray, other: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
     def ones_like(self) -> NDArray:
         """ones_like(self: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
     def relu(self) -> NDArray:
         """relu(self: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def relu_backward(self, grad_output: NDArray) -> NDArray:
+        """relu_backward(self: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def sigmoid(self) -> NDArray:
+        """sigmoid(self: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def sigmoid_backward(self, grad_output: NDArray) -> NDArray:
+        """sigmoid_backward(self: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
     def size(self) -> int:
         """size(self: GoTorch.backend.native_backend.NDArray) -> int"""
     def sub(self, subtrahend: NDArray) -> NDArray:
         """sub(self: GoTorch.backend.native_backend.NDArray, subtrahend: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def tanh(self) -> NDArray:
+        """tanh(self: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def tanh_backward(self, grad_output: NDArray) -> NDArray:
+        """tanh_backward(self: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
     def transpose(self, dim0: typing.SupportsInt | typing.SupportsIndex = ..., dim1: typing.SupportsInt | typing.SupportsIndex = ...) -> NDArray:
         """transpose(self: GoTorch.backend.native_backend.NDArray, dim0: typing.SupportsInt | typing.SupportsIndex = 0, dim1: typing.SupportsInt | typing.SupportsIndex = 1) -> GoTorch.backend.native_backend.NDArray"""
     def zeros_like(self) -> NDArray:

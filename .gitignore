@@ -5,5 +5,3 @@ __pycache__/
 .ruff_cache/
 build/
 *.so
-.agents
-.gemini

@@ -1,21 +1,39 @@
 #include "ndarray.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 #include <stdexcept>
 
 /**
  * @brief Computes standard row-major (C-contiguous) strides for a given shape.
+ * 
+ * In a standard C-contiguous layout, the innermost dimension has a stride of 1,
+ * and each preceding dimension's stride is the product of all following dimension sizes:
+ *   stride[i] = stride[i + 1] * shape[i + 1]
+ * 
+ * 1. Checks if the shape is empty (0-D scalar) and returns empty strides.
+ * 2. Initializes the stride vector with 1s matching the rank of the shape.
+ * 3. Iterates backwards from the second-to-innermost dimension, multiplying the
+ *    subsequent stride by the subsequent dimension size.
+ * 4. Returns the computed row-major strides.
+ * 
+ * @param shape Shape dimensions vector.
+ * @return Row-major strides vector for each dimension.
  */
 template <typename T>
 std::vector<size_t> ndarray<T>::default_strides(const std::vector<size_t>& shape) {
+    // 1. Check if shape is empty (scalar)
     if (shape.empty()) {
         return {};
     }
+    // 2. Initialize stride vector with 1s
     std::vector<size_t> str(shape.size(), 1);
+    // 3. Iteratively compute strides moving backwards
     for (int i = static_cast<int>(shape.size()) - 2; i >= 0; --i) {
         str[i] = str[i + 1] * shape[i + 1];
     }
+    // 4. Return computed strides
     return str;
 }
 
@@ -324,6 +342,103 @@ inline ndarray<T> broadcast_binary_op(
     return ndarray<T>(out_vec, out_shape);
 }
 
+/**
+ * @brief Applies an element-wise unary transformation across an ndarray.
+ * @param in Input ndarray.
+ * @param op Unary callable taking an element and returning transformed value.
+ * @return New ndarray with transformed elements and standard strides.
+ * @throws std::runtime_error If input storage is unallocated.
+ */
+template <typename T, typename UnaryOp>
+inline ndarray<T> apply_unary_op(const ndarray<T>& in, UnaryOp op) {
+    if (in.isEmpty()) {
+        return ndarray<T>(std::vector<T>{}, in.shape);
+    }
+    if (!in.storage) {
+        throw std::runtime_error("NDArray storage is unallocated");
+    }
+
+    size_t total_elements = in.size();
+    std::vector<T> out_vec(total_elements);
+
+    if (in.is_contiguous()) {
+        const T* src = in.storage->data.data() + in.offset;
+        for (size_t i = 0; i < total_elements; ++i) {
+            out_vec[i] = op(src[i]);
+        }
+    } else {
+        size_t rank = in.shape.size();
+        std::vector<size_t> coord(rank, 0);
+        const T* src = in.storage->data.data() + in.offset;
+        for (size_t i = 0; i < total_elements; ++i) {
+            size_t off = 0;
+            for (size_t d = 0; d < rank; ++d) {
+                off += coord[d] * in.strides[d];
+            }
+            out_vec[i] = op(src[off]);
+            advance_coordinate(coord, in.shape);
+        }
+    }
+
+    return ndarray<T>(out_vec, in.shape);
+}
+
+/**
+ * @brief Applies an element-wise backward transformation across input and upstream gradient.
+ * @param in Forward input ndarray.
+ * @param grad_output Upstream gradient ndarray.
+ * @param op Backward callable taking (input_element, grad_element).
+ * @return New ndarray with computed gradient elements and standard strides.
+ * @throws std::invalid_argument If grad_output shape does not match input shape.
+ * @throws std::runtime_error If either storage buffer is unallocated.
+ */
+template <typename T, typename BackwardOp>
+inline ndarray<T> apply_backward_op(
+    const ndarray<T>& in,
+    const ndarray<T>& grad_output,
+    BackwardOp op
+) {
+    if (in.shape != grad_output.shape) {
+        throw std::invalid_argument(
+            "shape mismatch: grad_output shape does not match array shape"
+        );
+    }
+    if (in.isEmpty()) {
+        return ndarray<T>(std::vector<T>{}, in.shape);
+    }
+    if (!in.storage || !grad_output.storage) {
+        throw std::runtime_error("NDArray storage is unallocated");
+    }
+
+    size_t total_elements = in.size();
+    std::vector<T> out_vec(total_elements);
+
+    if (in.is_contiguous() && grad_output.is_contiguous()) {
+        const T* src = in.storage->data.data() + in.offset;
+        const T* grad = grad_output.storage->data.data() + grad_output.offset;
+        for (size_t i = 0; i < total_elements; ++i) {
+            out_vec[i] = op(src[i], grad[i]);
+        }
+    } else {
+        size_t rank = in.shape.size();
+        std::vector<size_t> coord(rank, 0);
+        const T* src = in.storage->data.data() + in.offset;
+        const T* grad = grad_output.storage->data.data() + grad_output.offset;
+        for (size_t i = 0; i < total_elements; ++i) {
+            size_t off_src = 0;
+            size_t off_grad = 0;
+            for (size_t d = 0; d < rank; ++d) {
+                off_src += coord[d] * in.strides[d];
+                off_grad += coord[d] * grad_output.strides[d];
+            }
+            out_vec[i] = op(src[off_src], grad[off_grad]);
+            advance_coordinate(coord, in.shape);
+        }
+    }
+
+    return ndarray<T>(out_vec, in.shape);
+}
+
 }  // namespace
 
 /**
@@ -393,58 +508,103 @@ ndarray<T> ndarray<T>::matmul(const ndarray<T>& other) const {
 }
 
 /**
- * @brief Applies the rectified linear unit (ReLU) activation element-wise: max(0, x).
- * 
- * 1. Checks total number of elements and returns an empty array if size is 0
- * 2. Validates underlying storage buffer is allocated
- * 3. Allocates output buffer matching total number of elements
- * 4. Iterates over elements respecting shape, strides, and offset:
- *    assigns element if element > 0, else 0
- * 5. Returns resulting ndarray with matching shape and standard strides
- * 
- * On unallocated storage:
- * Throws std::runtime_error
+ * @brief Applies element-wise rectified linear unit (ReLU): max(0, x).
+ * @return New ndarray with ReLU applied to each element.
  */
 template <typename T>
 ndarray<T> ndarray<T>::relu() const {
-    // 1. Checks total number of elements and returns an empty array if size is 0
-    size_t total_elements = num_elements(shape);
-    if (total_elements == 0) {
-        return ndarray<T>(std::vector<T>{}, shape);
-    }
-    // 2. Validates underlying storage buffer is allocated
-    if (!storage) {
-        throw std::runtime_error("NDArray storage is unallocated");
-    }
+    return apply_unary_op(*this, [](T x) {
+        return x > static_cast<T>(0) ? x : static_cast<T>(0);
+    });
+}
 
-    // 3. Allocates output buffer matching total number of elements
-    std::vector<T> out_vec(total_elements);
+/**
+ * @brief Computes gradient for ReLU activation element-wise: grad_out * (x > 0 ? 1 : 0).
+ * @param grad_output Incoming upstream gradient array.
+ * @return New ndarray containing the computed gradients.
+ * @throws std::invalid_argument If grad_output shape does not match array shape.
+ */
+template <typename T>
+ndarray<T> ndarray<T>::relu_backward(const ndarray<T>& grad_output) const {
+    return apply_backward_op(*this, grad_output, [](T x, T grad) {
+        return x > static_cast<T>(0) ? grad : static_cast<T>(0);
+    });
+}
 
-    // 4. Iterates over elements respecting shape, strides, and offset
-    if (is_contiguous()) {
-        const T* src = storage->data.data() + offset;
-        for (size_t i = 0; i < total_elements; ++i) {
-            out_vec[i] = (src[i] > static_cast<T>(0))
-                         ? src[i] : static_cast<T>(0);
-        }
-    } else {
-        size_t rank = shape.size();
-        std::vector<size_t> coord(rank, 0);
-        const T* src = storage->data.data() + offset;
-        for (size_t i = 0; i < total_elements; ++i) {
-            size_t off = 0;
-            for (size_t d = 0; d < rank; ++d) {
-                off += coord[d] * strides[d];
-            }
-            T val = src[off];
-            out_vec[i] = (val > static_cast<T>(0))
-                         ? val : static_cast<T>(0);
-            advance_coordinate(coord, shape);
-        }
-    }
+/**
+ * @brief Applies element-wise hyperbolic tangent (tanh).
+ * @return New ndarray with tanh applied to each element.
+ */
+template <typename T>
+ndarray<T> ndarray<T>::tanh() const {
+    return apply_unary_op(*this, [](T x) {
+        return std::tanh(x);
+    });
+}
 
-    // 5. Returns resulting ndarray with matching shape and standard strides
-    return ndarray<T>(out_vec, shape);
+/**
+ * @brief Computes gradient for hyperbolic tangent (tanh) element-wise: grad_out * (1 - tanh(x)^2).
+ * @param grad_output Incoming upstream gradient array.
+ * @return New ndarray containing the computed gradients.
+ * @throws std::invalid_argument If grad_output shape does not match array shape.
+ */
+template <typename T>
+ndarray<T> ndarray<T>::tanh_backward(const ndarray<T>& grad_output) const {
+    return apply_backward_op(*this, grad_output, [](T x, T grad) {
+        T t = std::tanh(x);
+        return grad * (static_cast<T>(1) - t * t);
+    });
+}
+
+/**
+ * @brief Applies element-wise sigmoid activation: 1 / (1 + exp(-x)).
+ * @return New ndarray with sigmoid applied to each element.
+ */
+template <typename T>
+ndarray<T> ndarray<T>::sigmoid() const {
+    return apply_unary_op(*this, [](T x) {
+        return static_cast<T>(1) / (static_cast<T>(1) + std::exp(-x));
+    });
+}
+
+/**
+ * @brief Computes gradient for sigmoid element-wise: grad_out * sigmoid(x) * (1 - sigmoid(x)).
+ * @param grad_output Incoming upstream gradient array.
+ * @return New ndarray containing the computed gradients.
+ * @throws std::invalid_argument If grad_output shape does not match array shape.
+ */
+template <typename T>
+ndarray<T> ndarray<T>::sigmoid_backward(const ndarray<T>& grad_output) const {
+    return apply_backward_op(*this, grad_output, [](T x, T grad) {
+        T s = static_cast<T>(1) / (static_cast<T>(1) + std::exp(-x));
+        return grad * s * (static_cast<T>(1) - s);
+    });
+}
+
+/**
+ * @brief Applies element-wise leaky rectified linear unit (LeakyReLU): x if x > 0 else alpha * x.
+ * @param alpha Slope for negative inputs. Defaults to 0.01.
+ * @return New ndarray with LeakyReLU applied to each element.
+ */
+template <typename T>
+ndarray<T> ndarray<T>::leaky_relu(T alpha) const {
+    return apply_unary_op(*this, [alpha](T x) {
+        return x > static_cast<T>(0) ? x : alpha * x;
+    });
+}
+
+/**
+ * @brief Computes gradient for LeakyReLU element-wise: grad_out * (x > 0 ? 1 : alpha).
+ * @param grad_output Incoming upstream gradient array.
+ * @param alpha Slope for negative inputs. Defaults to 0.01.
+ * @return New ndarray containing the computed gradients.
+ * @throws std::invalid_argument If grad_output shape does not match array shape.
+ */
+template <typename T>
+ndarray<T> ndarray<T>::leaky_relu_backward(const ndarray<T>& grad_output, T alpha) const {
+    return apply_backward_op(*this, grad_output, [alpha](T x, T grad) {
+        return x > static_cast<T>(0) ? grad : grad * alpha;
+    });
 }
 
 // Explicit template instantiations

@@ -1,6 +1,6 @@
-from __future__ import annotations
-
+import math
 import pytest
+
 
 
 class TestNDArrayAdd:
@@ -130,4 +130,438 @@ class TestNDArrayRelu:
         res_4d = a_4d.relu()
         assert res_4d.shape == shape_4d
         assert list(res_4d.data) == [0.0, 2.0, 0.0, 4.0, 0.0, 6.0]
+
+
+class TestNDArrayReluBackward:
+    """Verifies ReLU backward gradient computation."""
+
+    def test_relu_backward_missing_grad_output_raises(self, backend) -> None:
+        """Omitting grad_output must raise TypeError."""
+        a = backend.NDArray(data=[-2.0, 1.0], shape=(2,))
+        with pytest.raises(TypeError):
+            _ = a.relu_backward()
+
+    def test_relu_backward_none_grad_output_raises(self, backend) -> None:
+        """Passing grad_output=None must raise TypeError."""
+        a = backend.NDArray(data=[-2.0, 1.0], shape=(2,))
+        with pytest.raises(TypeError):
+            _ = a.relu_backward(None)
+
+    def test_relu_backward_explicit_grad(self, backend) -> None:
+        """Gradient output is element-wise multiplied with ReLU derivative."""
+        a = backend.NDArray(data=[-2.0, -0.5, 0.0, 1.0, 3.0], shape=(5,))
+        grad = backend.NDArray(data=[10.0, 20.0, 30.0, 40.0, 50.0], shape=(5,))
+        res = a.relu_backward(grad)
+        assert res.shape == (5,)
+        assert list(res.data) == [0.0, 0.0, 0.0, 40.0, 50.0]
+
+    def test_relu_backward_strided_non_contiguous(self, backend) -> None:
+        """Tests relu_backward on a transposed view."""
+        a = backend.NDArray(data=[1.0, -2.0, 3.0, -4.0, 5.0, -6.0], shape=(2, 3)).transpose()
+        grad = backend.NDArray(data=[10.0, 20.0, 30.0, 40.0, 50.0, 60.0], shape=(3, 2))
+        res = a.relu_backward(grad)
+        assert res.shape == (3, 2)
+        assert res.is_contiguous()
+        # a transposed: [1.0, -4.0, -2.0, 5.0, 3.0, -6.0]
+        assert list(res.data) == [10.0, 0.0, 0.0, 40.0, 50.0, 0.0]
+
+    def test_relu_backward_shape_mismatch_raises(self, backend) -> None:
+        """Mismatched grad_output shape should raise ValueError."""
+        a = backend.NDArray(data=[1.0, 2.0, 3.0, 4.0], shape=(2, 2))
+        grad = backend.NDArray(data=[1.0, 2.0, 3.0], shape=(3,))
+        with pytest.raises(ValueError):
+            _ = a.relu_backward(grad)
+
+
+
+class TestNDArrayTanh:
+    """Verifies hyperbolic tangent (tanh) activation behavior."""
+
+    def test_tanh_zero(self, backend) -> None:
+        """tanh(0) should equal 0.0."""
+        a = backend.NDArray(data=[0.0], shape=(1,))
+        res = a.tanh()
+        assert res.shape == (1,)
+        assert res[0] == 0.0
+
+    def test_tanh_values(self, backend) -> None:
+        """Standard float values should match math.tanh within float precision."""
+        vals = [-2.0, -1.0, 0.0, 0.5, 1.0, 2.0]
+        a = backend.NDArray(data=vals, shape=(6,))
+        res = a.tanh()
+        assert res.shape == (6,)
+        for actual, x in zip(res.data, vals):
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == math.tanh(x)
+
+    def test_tanh_odd_symmetry(self, backend) -> None:
+        """tanh(-x) == -tanh(x)."""
+        vals = [0.1, 0.5, 1.0, 2.5]
+        neg_vals = [-x for x in vals]
+        a = backend.NDArray(data=vals, shape=(4,))
+        neg_a = backend.NDArray(data=neg_vals, shape=(4,))
+        res = a.tanh()
+        neg_res = neg_a.tanh()
+        for pos, neg in zip(res.data, neg_res.data):
+            assert pytest.approx(pos, rel=1e-5, abs=1e-6) == -neg
+
+    def test_tanh_saturation(self, backend) -> None:
+        """Extreme positive and negative numbers saturate to 1.0 and -1.0."""
+        a = backend.NDArray(data=[-40.0, 40.0], shape=(2,))
+        res = a.tanh()
+        assert pytest.approx(res[0], rel=1e-5) == -1.0
+        assert pytest.approx(res[1], rel=1e-5) == 1.0
+
+    def test_tanh_preserves_shape(self, backend) -> None:
+        """Arbitrary multidimensional shapes are preserved."""
+        shape = (2, 3, 2)
+        data = [0.1 * i for i in range(12)]
+        a = backend.NDArray(data=data, shape=shape)
+        res = a.tanh()
+        assert res.shape == shape
+
+    def test_tanh_strided_non_contiguous(self, backend) -> None:
+        """Tests tanh on transposed strided views."""
+        a = backend.NDArray(data=[0.0, 1.0, 2.0, -1.0, -2.0, 0.5], shape=(2, 3)).transpose()
+        assert not a.is_contiguous()
+        res = a.tanh()
+        assert res.shape == (3, 2)
+        assert res.is_contiguous()
+        expected = [
+            math.tanh(0.0), math.tanh(-1.0),
+            math.tanh(1.0), math.tanh(-2.0),
+            math.tanh(2.0), math.tanh(0.5)
+        ]
+        for actual, exp in zip(res.data, expected):
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == exp
+
+
+class TestNDArrayTanhBackward:
+    """Verifies tanh backward gradient computation."""
+
+    def test_tanh_backward_missing_grad_output_raises(self, backend) -> None:
+        """Omitting grad_output must raise TypeError."""
+        a = backend.NDArray(data=[0.0, 1.0], shape=(2,))
+        with pytest.raises(TypeError):
+            _ = a.tanh_backward()
+
+    def test_tanh_backward_none_grad_output_raises(self, backend) -> None:
+        """Passing grad_output=None must raise TypeError."""
+        a = backend.NDArray(data=[0.0, 1.0], shape=(2,))
+        with pytest.raises(TypeError):
+            _ = a.tanh_backward(None)
+
+    def test_tanh_backward_explicit_grad(self, backend) -> None:
+        """Upstream gradient is multiplied with (1 - tanh(x)^2)."""
+        vals = [-1.0, 0.0, 1.0]
+        grads = [2.0, 3.0, 4.0]
+        a = backend.NDArray(data=vals, shape=(3,))
+        g = backend.NDArray(data=grads, shape=(3,))
+        res = a.tanh_backward(g)
+        assert res.shape == (3,)
+        for actual, x, dy in zip(res.data, vals, grads):
+            t = math.tanh(x)
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == dy * (1.0 - t * t)
+
+    def test_tanh_backward_strided_non_contiguous(self, backend) -> None:
+        """Tanh backward on transposed view."""
+        a = backend.NDArray(data=[0.0, 1.0, -1.0, 2.0], shape=(2, 2)).transpose()
+        g = backend.NDArray(data=[1.0, 2.0, 3.0, 4.0], shape=(2, 2))
+        res = a.tanh_backward(g)
+        assert res.shape == (2, 2)
+        assert res.is_contiguous()
+        # a transposed: [0.0, -1.0, 1.0, 2.0]
+        at_vals = [0.0, -1.0, 1.0, 2.0]
+        for actual, x, dy in zip(res.data, at_vals, [1.0, 2.0, 3.0, 4.0]):
+            t = math.tanh(x)
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == dy * (1.0 - t * t)
+
+    def test_tanh_backward_shape_mismatch_raises(self, backend) -> None:
+        """Mismatched shapes should raise ValueError."""
+        a = backend.NDArray(data=[1.0, 2.0], shape=(2,))
+        g = backend.NDArray(data=[1.0, 2.0, 3.0], shape=(3,))
+        with pytest.raises(ValueError):
+            _ = a.tanh_backward(g)
+
+
+
+class TestNDArraySigmoid:
+    """Verifies sigmoid activation behavior."""
+
+    def test_sigmoid_zero(self, backend) -> None:
+        """sigmoid(0) == 0.5."""
+        a = backend.NDArray(data=[0.0], shape=(1,))
+        res = a.sigmoid()
+        assert res.shape == (1,)
+        assert pytest.approx(res[0], rel=1e-5) == 0.5
+
+    def test_sigmoid_values(self, backend) -> None:
+        """Evaluates sigmoid: 1 / (1 + exp(-x))."""
+        vals = [-2.0, -1.0, 0.0, 1.0, 2.0]
+        a = backend.NDArray(data=vals, shape=(5,))
+        res = a.sigmoid()
+        assert res.shape == (5,)
+        for actual, x in zip(res.data, vals):
+            exp_val = 1.0 / (1.0 + math.exp(-x))
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == exp_val
+
+    def test_sigmoid_symmetry(self, backend) -> None:
+        """sigmoid(-x) == 1 - sigmoid(x)."""
+        vals = [0.2, 0.7, 1.5, 3.0]
+        neg_vals = [-x for x in vals]
+        a = backend.NDArray(data=vals, shape=(4,))
+        neg_a = backend.NDArray(data=neg_vals, shape=(4,))
+        res = a.sigmoid()
+        neg_res = neg_a.sigmoid()
+        for pos, neg in zip(res.data, neg_res.data):
+            assert pytest.approx(pos + neg, rel=1e-5, abs=1e-6) == 1.0
+
+    def test_sigmoid_saturation(self, backend) -> None:
+        """Extreme values saturate near 0.0 and 1.0."""
+        a = backend.NDArray(data=[-50.0, 50.0], shape=(2,))
+        res = a.sigmoid()
+        assert pytest.approx(res[0], abs=1e-6) == 0.0
+        assert pytest.approx(res[1], rel=1e-5) == 1.0
+
+    def test_sigmoid_preserves_shape(self, backend) -> None:
+        """Multidimensional shapes are preserved."""
+        shape = (2, 2, 2)
+        a = backend.NDArray(data=[0.5] * 8, shape=shape)
+        res = a.sigmoid()
+        assert res.shape == shape
+
+    def test_sigmoid_strided_non_contiguous(self, backend) -> None:
+        """Sigmoid on non-contiguous transposed view."""
+        a = backend.NDArray(data=[0.0, 1.0, 2.0, -1.0, -2.0, 0.5], shape=(2, 3)).transpose()
+        assert not a.is_contiguous()
+        res = a.sigmoid()
+        assert res.shape == (3, 2)
+        assert res.is_contiguous()
+        expected = [
+            1.0 / (1.0 + math.exp(-0.0)),
+            1.0 / (1.0 + math.exp(1.0)),
+            1.0 / (1.0 + math.exp(-1.0)),
+            1.0 / (1.0 + math.exp(2.0)),
+            1.0 / (1.0 + math.exp(-2.0)),
+            1.0 / (1.0 + math.exp(-0.5)),
+        ]
+        for actual, exp in zip(res.data, expected):
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == exp
+
+
+class TestNDArraySigmoidBackward:
+    """Verifies sigmoid backward gradient computation."""
+
+    def test_sigmoid_backward_missing_grad_output_raises(self, backend) -> None:
+        """Omitting grad_output must raise TypeError."""
+        a = backend.NDArray(data=[0.0, 1.0], shape=(2,))
+        with pytest.raises(TypeError):
+            _ = a.sigmoid_backward()
+
+    def test_sigmoid_backward_none_grad_output_raises(self, backend) -> None:
+        """Passing grad_output=None must raise TypeError."""
+        a = backend.NDArray(data=[0.0, 1.0], shape=(2,))
+        with pytest.raises(TypeError):
+            _ = a.sigmoid_backward(None)
+
+    def test_sigmoid_backward_explicit_grad(self, backend) -> None:
+        """Upstream grad multiplied with s * (1 - s)."""
+        vals = [-2.0, 0.0, 2.0]
+        grads = [1.5, 2.5, 3.5]
+        a = backend.NDArray(data=vals, shape=(3,))
+        g = backend.NDArray(data=grads, shape=(3,))
+        res = a.sigmoid_backward(g)
+        assert res.shape == (3,)
+        for actual, x, dy in zip(res.data, vals, grads):
+            s = 1.0 / (1.0 + math.exp(-x))
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == dy * s * (1.0 - s)
+
+    def test_sigmoid_backward_strided_non_contiguous(self, backend) -> None:
+        """Sigmoid backward on non-contiguous transposed view."""
+        a = backend.NDArray(data=[0.0, 1.0, -1.0, 2.0], shape=(2, 2)).transpose()
+        g = backend.NDArray(data=[1.0, 2.0, 3.0, 4.0], shape=(2, 2))
+        res = a.sigmoid_backward(g)
+        assert res.shape == (2, 2)
+        assert res.is_contiguous()
+        at_vals = [0.0, -1.0, 1.0, 2.0]
+        for actual, x, dy in zip(res.data, at_vals, [1.0, 2.0, 3.0, 4.0]):
+            s = 1.0 / (1.0 + math.exp(-x))
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == dy * s * (1.0 - s)
+
+    def test_sigmoid_backward_shape_mismatch_raises(self, backend) -> None:
+        """Mismatched shapes should raise ValueError."""
+        a = backend.NDArray(data=[1.0, 2.0], shape=(2,))
+        g = backend.NDArray(data=[1.0, 2.0, 3.0], shape=(3,))
+        with pytest.raises(ValueError):
+            _ = a.sigmoid_backward(g)
+
+
+
+class TestNDArrayLeakyRelu:
+    """Verifies LeakyReLU activation behavior."""
+
+    def test_leaky_relu_default_alpha(self, backend) -> None:
+        """Default alpha=0.01: x if x > 0 else 0.01 * x."""
+        vals = [-200.0, -10.0, 0.0, 5.0, 10.0]
+        a = backend.NDArray(data=vals, shape=(5,))
+        res = a.leaky_relu()
+        assert res.shape == (5,)
+        expected = [-2.0, -0.1, 0.0, 5.0, 10.0]
+        for actual, exp in zip(res.data, expected):
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == exp
+
+    def test_leaky_relu_custom_alpha(self, backend) -> None:
+        """Custom alpha scales negative numbers accordingly."""
+        vals = [-10.0, -5.0, 0.0, 4.0]
+        a = backend.NDArray(data=vals, shape=(2, 2))
+        res = a.leaky_relu(alpha=0.2)
+        assert res.shape == (2, 2)
+        expected = [-2.0, -1.0, 0.0, 4.0]
+        for actual, exp in zip(res.data, expected):
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == exp
+
+    def test_leaky_relu_preserves_shape(self, backend) -> None:
+        """Arbitrary multidimensional shapes are preserved."""
+        shape = (2, 3, 2)
+        a = backend.NDArray(data=[-2.0] * 12, shape=shape)
+        res = a.leaky_relu(alpha=0.1)
+        assert res.shape == shape
+        for actual in res.data:
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == -0.2
+
+    def test_leaky_relu_strided_non_contiguous(self, backend) -> None:
+        """LeakyReLU on transposed view."""
+        a = backend.NDArray(data=[10.0, -20.0, 30.0, -40.0, 50.0, -60.0], shape=(2, 3)).transpose()
+        assert not a.is_contiguous()
+        res = a.leaky_relu(alpha=0.1)
+        assert res.shape == (3, 2)
+        assert res.is_contiguous()
+        expected = [10.0, -4.0, -2.0, 50.0, 30.0, -6.0]
+        for actual, exp in zip(res.data, expected):
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == exp
+
+
+class TestNDArrayLeakyReluBackward:
+    """Verifies LeakyReLU backward gradient computation."""
+
+    def test_leaky_relu_backward_missing_grad_output_raises(self, backend) -> None:
+        """Omitting grad_output must raise TypeError."""
+        a = backend.NDArray(data=[-2.0, 1.0], shape=(2,))
+        with pytest.raises(TypeError):
+            _ = a.leaky_relu_backward()
+
+    def test_leaky_relu_backward_none_grad_output_raises(self, backend) -> None:
+        """Passing grad_output=None must raise TypeError."""
+        a = backend.NDArray(data=[-2.0, 1.0], shape=(2,))
+        with pytest.raises(TypeError):
+            _ = a.leaky_relu_backward(None)
+
+    def test_leaky_relu_backward_default_alpha(self, backend) -> None:
+        """Default alpha=0.01: x > 0 -> grad, x <= 0 -> 0.01 * grad."""
+        vals = [-2.0, -0.5, 0.0, 1.0, 3.0]
+        grads = [10.0, 20.0, 30.0, 40.0, 50.0]
+        a = backend.NDArray(data=vals, shape=(5,))
+        g = backend.NDArray(data=grads, shape=(5,))
+        res = a.leaky_relu_backward(g)
+        assert res.shape == (5,)
+        expected = [0.1, 0.2, 0.3, 40.0, 50.0]
+        for actual, exp in zip(res.data, expected):
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == exp
+
+    def test_leaky_relu_backward_custom_alpha(self, backend) -> None:
+        """Custom alpha scales negative gradient contributions."""
+        vals = [-2.0, 0.0, 3.0]
+        grads = [10.0, 20.0, 30.0]
+        a = backend.NDArray(data=vals, shape=(3,))
+        g = backend.NDArray(data=grads, shape=(3,))
+        res = a.leaky_relu_backward(g, alpha=0.25)
+        assert res.shape == (3,)
+        expected = [2.5, 5.0, 30.0]
+        for actual, exp in zip(res.data, expected):
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == exp
+
+    def test_leaky_relu_backward_strided_non_contiguous(self, backend) -> None:
+        """LeakyReLU backward on transposed view."""
+        a = backend.NDArray(data=[1.0, -2.0, 3.0, -4.0], shape=(2, 2)).transpose()
+        g = backend.NDArray(data=[10.0, 20.0, 30.0, 40.0], shape=(2, 2))
+        res = a.leaky_relu_backward(grad_output=g, alpha=0.1)
+        assert res.shape == (2, 2)
+        assert res.is_contiguous()
+        # a_t: [1.0, 3.0, -2.0, -4.0]
+        expected = [10.0, 20.0, 3.0, 4.0]
+        for actual, exp in zip(res.data, expected):
+            assert pytest.approx(actual, rel=1e-5, abs=1e-6) == exp
+
+    def test_leaky_relu_backward_shape_mismatch_raises(self, backend) -> None:
+        """Mismatched shapes should raise ValueError."""
+        a = backend.NDArray(data=[1.0, 2.0], shape=(2,))
+        g = backend.NDArray(data=[1.0, 2.0, 3.0], shape=(3,))
+        with pytest.raises(ValueError):
+            _ = a.leaky_relu_backward(grad_output=g)
+
+
+class TestNDArrayIsEmpty:
+    """Verifies isEmpty method on NDArray."""
+
+    def test_is_empty_default_constructed(self, backend) -> None:
+        """Default constructed NDArray has uninitialized storage (isEmpty == True)."""
+        a = backend.NDArray()
+        assert a.isEmpty() is True
+
+    def test_is_empty_initialized_empty_storage(self, backend) -> None:
+        """Initialized empty storage with shape (0,) has isEmpty == True."""
+        a = backend.NDArray(data=[], shape=(0,))
+        assert a.isEmpty() is True
+
+    def test_is_empty_initialized_non_empty_storage(self, backend) -> None:
+        """NDArray with data has isEmpty == False."""
+        a = backend.NDArray(data=[1.0, 2.0], shape=(2,))
+        assert a.isEmpty() is False
+
+    def test_is_empty_scalar(self, backend) -> None:
+        """0-D scalar has 1 element and has isEmpty == False."""
+        a = backend.NDArray(data=[42.0], shape=())
+        assert a.isEmpty() is False
+
+
+class TestNDArrayScalar:
+    """Verifies 0-D scalar support with empty shape () and num_elements = 1."""
+
+    def test_scalar_empty_shape_and_num_elements(self, backend) -> None:
+        """0-D scalar has empty shape (), size 1, accessible via s[()] and s.data[0]."""
+        s = backend.NDArray(data=[3.14], shape=())
+        assert s.shape == ()
+        assert s.size() == 1
+        assert s[()] == pytest.approx(3.14, rel=1e-5)
+        assert s.data[0] == pytest.approx(3.14, rel=1e-5)
+        assert s.isEmpty() is False
+
+        # Indexing with 1-D index raises IndexError (dimensional mismatch)
+        with pytest.raises(IndexError):
+            _ = s[0]
+
+    def test_scalar_addition(self, backend) -> None:
+        """Scalar-scalar addition produces a 0-D scalar."""
+        s1 = backend.NDArray(data=[2.5], shape=())
+        s2 = backend.NDArray(data=[3.5], shape=())
+        res = s1 + s2
+        assert res.shape == ()
+        assert res.size() == 1
+        assert res[()] == pytest.approx(6.0, rel=1e-5)
+        assert res.data[0] == pytest.approx(6.0, rel=1e-5)
+
+    def test_scalar_activations(self, backend) -> None:
+        """Activations and backward operations work correctly on 0-D scalars."""
+        s = backend.NDArray(data=[-2.0], shape=())
+        assert s.relu()[()] == 0.0
+        assert s.tanh()[()] == pytest.approx(math.tanh(-2.0), rel=1e-5)
+        assert s.sigmoid()[()] == pytest.approx(1.0 / (1.0 + math.exp(2.0)), rel=1e-5)
+        assert s.leaky_relu(alpha=0.1)[()] == pytest.approx(-0.2, rel=1e-5)
+
+        grad = backend.NDArray(data=[5.0], shape=())
+        assert s.relu_backward(grad)[()] == 0.0
+        assert s.leaky_relu_backward(grad, alpha=0.1)[()] == pytest.approx(0.5, rel=1e-5)
+
+
+
+
 
