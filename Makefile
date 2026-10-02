@@ -2,6 +2,10 @@ CXX ?= g++
 CXXFLAGS ?= -std=c++17 -O3 -Wall -Wextra -fPIC
 PYTHON ?= ./.venv/bin/python
 
+# Python extension flags
+PY_INCLUDES ?= $(shell $(PYTHON) -m pybind11 --includes 2>/dev/null)
+EXT_SUFFIX ?= $(shell $(PYTHON) -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))" 2>/dev/null)
+
 # Project directories
 ROOT_DIR := $(shell pwd)
 CPP_SRC_DIR := $(ROOT_DIR)/GoTorch/backend/cppsrc
@@ -11,17 +15,27 @@ BIN_DIR := $(BUILD_DIR)/bin
 GTEST_DIR := $(BUILD_DIR)/gtest
 
 # Compiler flags
-INCLUDES := -I$(CPP_SRC_DIR) -isystem $(GTEST_DIR)/src/googletest/include
+INCLUDES := -I$(CPP_SRC_DIR)/include -I$(CPP_SRC_DIR) -isystem $(GTEST_DIR)/src/googletest/include
 LDFLAGS := -pthread
+
+# Modular C++ backend sources
+CPP_SRCS := $(CPP_SRC_DIR)/src/shape_utils.cpp \
+            $(CPP_SRC_DIR)/src/ndarray.cpp \
+            $(CPP_SRC_DIR)/src/kernels.cpp
+
+BACKEND_SO := $(ROOT_DIR)/GoTorch/backend/native_backend$(EXT_SUFFIX)
 
 .PHONY: all build test-cpp test-specific clean gtest help stubs
 
 all: build
 
 # 1. Build the Python C++ native extension
-build:
-	@echo "==> Building GoTorch native_backend extension..."
-	PYTHON=$(PYTHON) $(CPP_SRC_DIR)/build.sh
+build: $(BACKEND_SO)
+
+$(BACKEND_SO): $(CPP_SRCS) $(CPP_SRC_DIR)/bindings.cpp
+	@echo "==> Compiling GoTorch native_backend extension..."
+	@$(CXX) $(CXXFLAGS) -shared $(PY_INCLUDES) $(INCLUDES) $^ -o $@
+	@echo "Built $@"
 
 # 2. Setup GoogleTest dependency
 $(GTEST_DIR)/libgtest.a:
@@ -37,11 +51,11 @@ $(GTEST_DIR)/libgtest.a:
 gtest: $(GTEST_DIR)/libgtest.a
 
 # 3. Build C++ test executable
-$(BIN_DIR)/test_ndarray: $(GTEST_DIR)/libgtest.a $(CPP_SRC_DIR)/ndarray.cpp $(TEST_SRC_DIR)/test_ndarray.cpp
+$(BIN_DIR)/test_ndarray: $(GTEST_DIR)/libgtest.a $(CPP_SRCS) $(TEST_SRC_DIR)/test_ndarray.cpp
 	@mkdir -p $(BIN_DIR)
 	@echo "==> Compiling test_ndarray..."
 	@$(CXX) $(CXXFLAGS) $(INCLUDES) \
-		$(CPP_SRC_DIR)/ndarray.cpp \
+		$(CPP_SRCS) \
 		$(TEST_SRC_DIR)/test_ndarray.cpp \
 		$(GTEST_DIR)/libgtest.a \
 		$(LDFLAGS) \
