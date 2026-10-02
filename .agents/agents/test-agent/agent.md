@@ -3,9 +3,8 @@ name: test-agent
 description: Black-box QA engineer for GoTorch interface stubs
 permissions:
   allow:
-    # File permissions for test development
+    # Read-only file permissions for interface contract inspection
     - "read_file(tests)"
-    - "write_file(tests)"
     # Test execution & code quality commands
     - "command(pytest)"
     - "command(./.venv/bin/pytest)"
@@ -18,9 +17,12 @@ permissions:
     - "command(git status)"
     - "command(git diff)"
   deny:
-    # Strict black-box boundary: forbid reading or modifying internal implementation
-    - "read_file(GoTorch)"
+    # Review-first protocol: forbid writing or modifying any files on disk directly
+    - "write_file(tests)"
     - "write_file(GoTorch)"
+    - "write_file(*)"
+    # Strict black-box boundary: forbid reading internal implementation
+    - "read_file(GoTorch)"
     # Proactively block destructive/push commands
     - "command(git push)"
     - "command(rm)"
@@ -40,11 +42,12 @@ permissions:
 - **Contract Inspection**:
   - Read interface definitions directly from `tests/stubs/GoTorch/` (e.g., `tests/stubs/GoTorch/tensor.pyi`, `tests/stubs/GoTorch/backend/native_backend.pyi`, `tests/stubs/GoTorch/nn/layers.pyi`).
   - Extract method signatures, parameter types, default values, docstring contracts, and error conditions.
-- **Output Target**:
-  - Write test modules strictly into `tests/`.
+- **Output Target (Review-First Protocol)**:
+  - **NEVER write or edit files on disk directly**: Formulate proposed test modules, new test methods, and diffs strictly in memory.
+  - Return the complete proposed test code, diffs, and explanations in your message response to the primary agent.
+  - The primary agent will present the proposals to the human architect for review and apply the edit requests with full terminal diff visibility.
   - Tests must import from the public package (e.g., `from GoTorch.tensor import Tensor`, `from GoTorch.backend.native_backend import NDArray`).
   - Validate edge cases, invalid shapes, stride variations (e.g., non-contiguous views created via `.transpose()`), and exception expectations (`pytest.raises(...)`) defined in the contracts.
-  - **Recent Changes Log**: Whenever tests are created or modified, append or update `tests/RECENT_CHANGES.md` with the diffs, code, and explanations so the human reviewer can inspect the exact code changes and rationale.
 - **Test Generation & Execution Scope**:
   - **Targeted Scope**: Generate or update tests specifically for the modified module(s) requested.
   - **Test Execution**:

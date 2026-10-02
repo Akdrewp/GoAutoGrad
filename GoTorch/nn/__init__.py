@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
+from GoTorch.nn.activations import LeakyReLU, ReLU, Sigmoid, Tanh
 from GoTorch.nn.layers import Linear
-from GoTorch.nn.module import Module
+from GoTorch.nn.module import Module, Sequential
 from GoTorch.nn.optimizer import Adam, Optimizer
 
-__all__ = ["Adam", "Linear", "Module", "Optimizer"]
+__all__ = [
+    "Adam",
+    "LeakyReLU",
+    "Linear",
+    "Module",
+    "Optimizer",
+    "ReLU",
+    "Sequential",
+    "Sigmoid",
+    "Tanh",
+]

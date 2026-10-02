@@ -5,3 +5,6 @@ __pycache__/
 .ruff_cache/
 build/
 *.so
+tests/RECENT_CHANGES.md
+RECENT_CHANGES.md
+

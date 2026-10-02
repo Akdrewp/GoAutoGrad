@@ -281,6 +281,21 @@ public:
     ndarray leaky_relu_backward(const ndarray& grad_output, T alpha = static_cast<T>(0.01)) const;
 
     /**
+     * @brief Computes the sum of elements over a specified dimension.
+     * @param dim Dimension along which to sum. Negative values index from the end.
+     * @param keepdim Whether the output array retains the reduced dimension as size 1.
+     * @return New ndarray with summed values.
+     * @throws std::out_of_range If dim is out of range [-ndim, ndim-1].
+     */
+    ndarray sum(int dim, bool keepdim = false) const;
+
+    /**
+     * @brief Computes the total sum of all elements in the array.
+     * @return New ndarray containing the scalar total sum.
+     */
+    ndarray sum() const;
+
+    /**
      * @brief Returns an array of ones with identical shape and standard strides.
      */
     ndarray ones_like() const {

@@ -62,14 +62,67 @@ class Module:
         params: list[Tensor] = []
         visited_ids: set[int] = set()
 
-        def _collect(mod: Module) -> None:
-            for _, value in mod.__dict__.items():
-                if isinstance(value, Tensor):
-                    if id(value) not in visited_ids:
-                        visited_ids.add(id(value))
-                        params.append(value)
-                elif isinstance(value, Module):
+        def _collect(item: object) -> None:
+            if isinstance(item, Tensor):
+                if id(item) not in visited_ids:
+                    visited_ids.add(id(item))
+                    params.append(item)
+            elif isinstance(item, Module):
+                for _, value in item.__dict__.items():
                     _collect(value)
+            elif isinstance(item, (list, tuple)):
+                for elem in item:
+                    _collect(elem)
 
         _collect(self)
         return params
+
+
+class Sequential(Module):
+    """A sequential container of Modules.
+
+    Modules will be added to it in the order they are passed in the
+    constructor. The forward() pass of `Sequential` chains the output of each
+    submodule as the input to the next submodule.
+
+    Attributes:
+        layers: List of child Modules in execution order.
+    """
+
+    def __init__(self, *args: Module | list[Module] | tuple[Module, ...]) -> None:
+        """Initializes the Sequential container.
+
+        Args:
+            *args: Either variable arguments of Modules, or a single list/tuple of Modules.
+        """
+        super().__init__()
+        if len(args) == 1 and isinstance(args[0], (list, tuple)):
+            self.layers: list[Module] = list(args[0])
+        else:
+            self.layers = list(args)  # type: ignore[arg-type]
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Sequentially applies each layer to the input.
+
+        Args:
+            x: Input Tensor to pass through the chain of layers.
+
+        Returns:
+            Output Tensor after passing sequentially through all layers.
+        """
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+    def __len__(self) -> int:
+        """Returns the number of layers in the Sequential container."""
+        return len(self.layers)
+
+    def __getitem__(self, idx: int) -> Module:
+        """Returns the layer at the given index."""
+        return self.layers[idx]
+
+    def __iter__(self):
+        """Yields each layer in the Sequential container."""
+        return iter(self.layers)
+

@@ -607,6 +607,111 @@ ndarray<T> ndarray<T>::leaky_relu_backward(const ndarray<T>& grad_output, T alph
     });
 }
 
+/**
+ * @brief Computes the sum of elements over a specified dimension.
+ * @param dim Dimension along which to sum. Negative values index from the end.
+ * @param keepdim Whether the output array retains the reduced dimension as size 1.
+ * @return New ndarray with summed values.
+ * @throws std::out_of_range If dim is out of range [-ndim, ndim-1].
+ */
+template <typename T>
+ndarray<T> ndarray<T>::sum(int dim, bool keepdim) const {
+    size_t rank = shape.size();
+    if (rank == 0) {
+        if (dim == 0 || dim == -1) {
+            return *this;
+        }
+        throw std::out_of_range("Dimension out of range for 0-D array: " + std::to_string(dim));
+    }
+
+    int norm_dim = dim;
+    if (norm_dim < 0) {
+        norm_dim += static_cast<int>(rank);
+    }
+    if (norm_dim < 0 || norm_dim >= static_cast<int>(rank)) {
+        throw std::out_of_range("Dimension out of range: " + std::to_string(dim));
+    }
+    size_t axis = static_cast<size_t>(norm_dim);
+
+    std::vector<size_t> out_shape;
+    if (keepdim) {
+        out_shape = shape;
+        out_shape[axis] = 1;
+    } else {
+        out_shape.reserve(rank > 1 ? rank - 1 : 0);
+        for (size_t i = 0; i < rank; ++i) {
+            if (i != axis) {
+                out_shape.push_back(shape[i]);
+            }
+        }
+    }
+
+    size_t out_num_el = num_elements(out_shape);
+    std::vector<T> out_data(out_num_el, static_cast<T>(0));
+    std::vector<size_t> out_strides = default_strides(out_shape);
+
+    if (size() == 0 || !storage) {
+        return ndarray<T>(out_data, out_shape);
+    }
+
+    std::vector<size_t> in_coord(rank, 0);
+    std::vector<size_t> out_coord(out_shape.size(), 0);
+    size_t total_in = size();
+
+    for (size_t step = 0; step < total_in; ++step) {
+        if (keepdim) {
+            for (size_t i = 0; i < rank; ++i) {
+                out_coord[i] = (i == axis) ? 0 : in_coord[i];
+            }
+        } else {
+            size_t c_idx = 0;
+            for (size_t i = 0; i < rank; ++i) {
+                if (i != axis) {
+                    out_coord[c_idx++] = in_coord[i];
+                }
+            }
+        }
+
+        size_t out_offset = 0;
+        for (size_t i = 0; i < out_coord.size(); ++i) {
+            out_offset += out_coord[i] * out_strides[i];
+        }
+
+        size_t in_offset = index_to_offset(in_coord);
+        out_data[out_offset] += storage->data[in_offset];
+        advance_coordinate(in_coord, shape);
+    }
+
+    return ndarray<T>(out_data, out_shape);
+}
+
+/**
+ * @brief Computes the total sum of all elements in the array.
+ * @return New ndarray containing the scalar total sum.
+ */
+template <typename T>
+ndarray<T> ndarray<T>::sum() const {
+    if (size() == 0 || !storage) {
+        return ndarray<T>(std::vector<T>{static_cast<T>(0)}, {});
+    }
+
+    T total = static_cast<T>(0);
+    if (is_contiguous()) {
+        for (size_t i = 0; i < size(); ++i) {
+            total += storage->data[offset + i];
+        }
+    } else {
+        std::vector<size_t> in_coord(shape.size(), 0);
+        size_t total_in = size();
+        for (size_t step = 0; step < total_in; ++step) {
+            total += storage->data[index_to_offset(in_coord)];
+            advance_coordinate(in_coord, shape);
+        }
+    }
+
+    return ndarray<T>(std::vector<T>{total}, {});
+}
+
 // Explicit template instantiations
 template struct Storage<float>;
 template struct Storage<double>;

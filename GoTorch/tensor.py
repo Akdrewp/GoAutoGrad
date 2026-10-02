@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 from GoTorch.autograd.autograd_engine import AutogradEngine
-from GoTorch.autograd.operations import Add, MatMul, Sub, Transpose
+from GoTorch.autograd.operations import (
+    Add,
+    LeakyReLU,
+    MatMul,
+    ReLU,
+    Sigmoid,
+    Sub,
+    Tanh,
+    Transpose,
+)
 from GoTorch.backend.native_backend import NDArray
 
 
@@ -148,6 +157,47 @@ class Tensor:
         """
         out_data = Transpose.compute(self.data, dim0, dim1)
         return Tensor(data=out_data, op=Transpose, inputs=[self])
+
+    def relu(self) -> Tensor:
+        """Applies the Rectified Linear Unit (ReLU) function element-wise.
+
+        Returns:
+            A new Tensor node in the DAG with ReLU applied.
+        """
+        out_data = ReLU.compute(self.data)
+        return Tensor(data=out_data, op=ReLU, inputs=[self])
+
+    def sigmoid(self) -> Tensor:
+        """Applies the Sigmoid function element-wise.
+
+        Returns:
+            A new Tensor node in the DAG with Sigmoid applied.
+        """
+        out_data = Sigmoid.compute(self.data)
+        return Tensor(data=out_data, op=Sigmoid, inputs=[self])
+
+    def tanh(self) -> Tensor:
+        """Applies the Hyperbolic Tangent (Tanh) function element-wise.
+
+        Returns:
+            A new Tensor node in the DAG with Tanh applied.
+        """
+        out_data = Tanh.compute(self.data)
+        return Tensor(data=out_data, op=Tanh, inputs=[self])
+
+    def leaky_relu(self, alpha: float = 0.01) -> Tensor:
+        """Applies the Leaky ReLU function element-wise.
+
+        Args:
+            alpha: Controls the angle of the negative slope. Defaults to 0.01.
+
+        Returns:
+            A new Tensor node in the DAG with LeakyReLU applied.
+        """
+        out_data = LeakyReLU.compute(self.data, alpha=alpha)
+        node = Tensor(data=out_data, op=LeakyReLU, inputs=[self])
+        node.alpha = alpha
+        return node
 
     def __repr__(self) -> str:
         """Returns string representation of the Tensor."""

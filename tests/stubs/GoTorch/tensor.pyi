@@ -1,5 +1,5 @@
 from GoTorch.autograd.autograd_engine import AutogradEngine as AutogradEngine
-from GoTorch.autograd.operations import Add as Add, MatMul as MatMul, Sub as Sub, Transpose as Transpose
+from GoTorch.autograd.operations import Add as Add, LeakyReLU as LeakyReLU, MatMul as MatMul, ReLU as ReLU, Sigmoid as Sigmoid, Sub as Sub, Tanh as Tanh, Transpose as Transpose
 from GoTorch.backend.native_backend import NDArray as NDArray
 from _typeshed import Incomplete
 
@@ -105,4 +105,31 @@ class Tensor:
 
         Returns:
             A transposed Tensor viewing the underlying storage.
+        """
+    def relu(self) -> Tensor:
+        """Applies the Rectified Linear Unit (ReLU) function element-wise.
+
+        Returns:
+            A new Tensor node in the DAG with ReLU applied.
+        """
+    def sigmoid(self) -> Tensor:
+        """Applies the Sigmoid function element-wise.
+
+        Returns:
+            A new Tensor node in the DAG with Sigmoid applied.
+        """
+    def tanh(self) -> Tensor:
+        """Applies the Hyperbolic Tangent (Tanh) function element-wise.
+
+        Returns:
+            A new Tensor node in the DAG with Tanh applied.
+        """
+    def leaky_relu(self, alpha: float = 0.01) -> Tensor:
+        """Applies the Leaky ReLU function element-wise.
+
+        Args:
+            alpha: Controls the angle of the negative slope. Defaults to 0.01.
+
+        Returns:
+            A new Tensor node in the DAG with LeakyReLU applied.
         """

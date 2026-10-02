@@ -42,3 +42,36 @@ class Module:
         Returns:
             A list of unique Tensor parameters.
         """
+
+class Sequential(Module):
+    """A sequential container of Modules.
+
+    Modules will be added to it in the order they are passed in the
+    constructor. The forward() pass of `Sequential` chains the output of each
+    submodule as the input to the next submodule.
+
+    Attributes:
+        layers: List of child Modules in execution order.
+    """
+    layers: list[Module]
+    def __init__(self, *args: Module | list[Module] | tuple[Module, ...]) -> None:
+        """Initializes the Sequential container.
+
+        Args:
+            *args: Either variable arguments of Modules, or a single list/tuple of Modules.
+        """
+    def forward(self, x: Tensor) -> Tensor:
+        """Sequentially applies each layer to the input.
+
+        Args:
+            x: Input Tensor to pass through the chain of layers.
+
+        Returns:
+            Output Tensor after passing sequentially through all layers.
+        """
+    def __len__(self) -> int:
+        """Returns the number of layers in the Sequential container."""
+    def __getitem__(self, idx: int) -> Module:
+        """Returns the layer at the given index."""
+    def __iter__(self):
+        """Yields each layer in the Sequential container."""

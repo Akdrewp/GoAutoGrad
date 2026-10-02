@@ -79,6 +79,12 @@ PYBIND11_MODULE(native_backend, m) {
         .def("sigmoid_backward", &NDArray::sigmoid_backward, py::arg("grad_output"))
         .def("leaky_relu", &NDArray::leaky_relu, py::arg("alpha") = 0.01f)
         .def("leaky_relu_backward", &NDArray::leaky_relu_backward, py::arg("grad_output"), py::arg("alpha") = 0.01f)
+        .def("sum", [](const NDArray& self, py::object dim, bool keepdim) -> NDArray {
+            if (dim.is_none()) {
+                return self.sum();
+            }
+            return self.sum(dim.cast<int>(), keepdim);
+        }, py::arg("dim") = py::none(), py::arg("keepdim") = false)
         .def("isEmpty", &NDArray::isEmpty)
         .def("is_contiguous", &NDArray::is_contiguous)
         .def("ones_like", &NDArray::ones_like)

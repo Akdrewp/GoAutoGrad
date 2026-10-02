@@ -49,6 +49,8 @@ class NDArray:
         """size(self: GoTorch.backend.native_backend.NDArray) -> int"""
     def sub(self, subtrahend: NDArray) -> NDArray:
         """sub(self: GoTorch.backend.native_backend.NDArray, subtrahend: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def sum(self, dim: object = ..., keepdim: bool = ...) -> NDArray:
+        """sum(self: GoTorch.backend.native_backend.NDArray, dim: object = None, keepdim: bool = False) -> GoTorch.backend.native_backend.NDArray"""
     def tanh(self) -> NDArray:
         """tanh(self: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
     def tanh_backward(self, grad_output: NDArray) -> NDArray:

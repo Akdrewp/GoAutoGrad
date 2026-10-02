@@ -20,7 +20,7 @@ Your job is strictly to implement the concrete Python/C++ code fulfilling those 
 4. **Architectural Hierarchy & Clean Tree**:
    - Dependencies must remain strictly unidirectional: `tensor.py` -> `autograd/` -> `backend/`.
    - Never introduce circular imports.
-   - Use absolute package imports (`from GoTorch.backend.ndarray import NDArray`).
+   - Use absolute package imports (`from GoTorch.backend.native_backend import NDArray`).
    - Imports must follow lexicographical order (Ruff rule `I001`).
 5. **Memory & Layout Invariants**:
    - Operations on `NDArray` must respect `shape`, `strides`, and `offset`.
@@ -37,15 +37,19 @@ Whenever any file in `GoTorch/` is modified:
 1. **Lifecycle Hook Execution**: The `PostToolUse` hook in `.agents/hooks.json` automatically:
    - Runs `make build` if any C++ backend source in `GoTorch/backend/cppsrc/` was touched.
    - Runs `stubgen` (`make stubs`) to regenerate interface stubs under `tests/stubs/GoTorch/`.
-2. **Subagent Delegation**:
-   - The primary agent MUST delegate test creation and verification to `test-agent` via `invoke_subagent`.
+2. **Subagent Delegation (Review-First)**:
+   - The primary agent MUST delegate test creation to `test-agent` via `invoke_subagent` / `send_message`.
    - The delegation prompt MUST instruct `test-agent` to:
      - Inspect the updated contracts in `tests/stubs/GoTorch/` for the modified module(s).
-     - Generate or update tests specifically for the modified module(s).
-     - Run the targeted module tests and any related end-to-end integration tests, skipping unaffected unit tests.
-     - Report back any failures with contract violation details instead of touching `GoTorch/` directly.
-3. **Iterative Fixing**:
-   - If `test-agent` reports failures, the primary agent iterates on the `GoTorch/` implementation to fix the issues until all tests pass.
+     - Formulate new or updated tests purely from the interface stubs.
+     - **NEVER write or edit files on disk directly**: Return the exact test code, diffs, and explanations strictly in its response message back to the primary agent.
+3. **Human Review & Application**:
+   - The primary agent presents the proposed test code and diffs to the human developer.
+   - The primary agent applies the changes via tool edit requests (`write_to_file` / `replace_file_content`), ensuring full diff visibility and approval directly in the primary terminal.
+4. **Verification & Iterative Fixing**:
+   - The primary agent executes the targeted tests (`pytest` / `make test-cpp`) and related integration tests.
+   - If tests fail, the primary agent iterates on the `GoTorch/` implementation to resolve contract violations until all tests pass.
+
 
 
 
