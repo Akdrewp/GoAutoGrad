@@ -1,6 +1,8 @@
 CXX ?= g++
 CXXFLAGS ?= -std=c++17 -O3 -Wall -Wextra -fPIC
 PYTHON ?= ./.venv/bin/python
+CLANG_TIDY ?= ./.venv/bin/clang-tidy
+RUFF ?= ./.venv/bin/ruff
 
 # Python extension flags
 PY_INCLUDES ?= $(shell $(PYTHON) -m pybind11 --includes 2>/dev/null)
@@ -21,11 +23,12 @@ LDFLAGS := -pthread
 # Modular C++ backend sources
 CPP_SRCS := $(CPP_SRC_DIR)/src/shape_utils.cpp \
             $(CPP_SRC_DIR)/src/ndarray.cpp \
-            $(CPP_SRC_DIR)/src/kernels.cpp
+            $(CPP_SRC_DIR)/src/kernels.cpp \
+            $(CPP_SRC_DIR)/nn/loss.cpp
 
 BACKEND_SO := $(ROOT_DIR)/GoTorch/backend/native_backend$(EXT_SUFFIX)
 
-.PHONY: all build test-cpp test-specific clean gtest help stubs
+.PHONY: all build test-cpp test-specific clean gtest help stubs lint lint-cpp lint-py
 
 all: build
 
@@ -99,12 +102,28 @@ stubs:
 	@echo "==> Generating type stubs in tests/stubs..."
 	./.venv/bin/stubgen -p GoTorch -o tests/stubs --include-docstrings
 
-# 8. Help
+# 8. Linting & Static Analysis (C++ clang-tidy & Python ruff, excluding tests)
+lint-cpp:
+	@echo "==> Running clang-tidy on C++ backend sources..."
+	@$(CLANG_TIDY) $(CPP_SRCS) -- -std=c++17 $(INCLUDES)
+	@$(CLANG_TIDY) $(CPP_SRC_DIR)/bindings.cpp -- -std=c++17 $(INCLUDES) $(PY_INCLUDES)
+
+lint-py:
+	@echo "==> Running ruff on Python codebase..."
+	@$(RUFF) check GoTorch
+
+lint: lint-cpp lint-py
+	@echo "==> All linter checks passed with zero warnings!"
+
+# 9. Help
 help:
 	@echo "Available commands:"
 	@echo "  make build                     Build native C++ backend extension"
 	@echo "  make test-cpp                  Run all C++ tests"
 	@echo "  make test-cpp TEST=<name>      Run specific C++ test matching pattern"
 	@echo "  make test-specific TEST=<name> Run specific C++ test"
+	@echo "  make lint                      Run clang-tidy on C++ and ruff on Python"
+	@echo "  make lint-cpp                  Run clang-tidy on C++ backend sources"
+	@echo "  make lint-py                   Run ruff on Python codebase"
 	@echo "  make stubs                     Generate Python type stubs via stubgen"
 	@echo "  make clean                     Remove build artifacts"

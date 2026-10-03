@@ -230,6 +230,7 @@ public:
     ndarray leaky_relu_backward(const ndarray& grad_output, T alpha = static_cast<T>(0.01)) const;
     ndarray sum(int dim, bool keepdim = false) const;
     ndarray sum() const;
+    ndarray unbroadcast(const std::vector<size_t>& target_shape) const;
 };
 
 using NDArray = ndarray<float>;

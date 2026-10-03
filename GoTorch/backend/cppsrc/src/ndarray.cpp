@@ -83,6 +83,11 @@ ndarray<T> ndarray<T>::reshape(const std::vector<size_t>& new_shape) const {
     return ndarray(storage, new_shape, default_strides(new_shape), offset);
 }
 
+template <typename T>
+ndarray<T> ndarray<T>::unbroadcast(const std::vector<size_t>& target_shape) const {
+    return gotorch::shape_utils::unbroadcast(*this, target_shape);
+}
+
 // Explicit template instantiations
 template struct Storage<float>;
 template struct Storage<double>;

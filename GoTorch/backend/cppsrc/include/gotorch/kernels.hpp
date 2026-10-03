@@ -280,7 +280,7 @@ ndarray<T> matmul(const ndarray<T>& a, const ndarray<T>& b) {
             for (size_t k = 0; k < K1; ++k) {
                 dot_sum += a({i, k}) * b({k, j});
             }
-            out_vec[i * N + j] = dot_sum;
+            out_vec[(i * N) + j] = dot_sum;
         }
     }
 
@@ -312,7 +312,7 @@ template <typename T>
 ndarray<T> tanh_backward(const ndarray<T>& a, const ndarray<T>& grad_output) {
     return for_each_backward(a, grad_output, [](T x, T grad) {
         T th = std::tanh(x);
-        return grad * (static_cast<T>(1) - th * th);
+        return grad * (static_cast<T>(1) - (th * th));
     });
 }
 

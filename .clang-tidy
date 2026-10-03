@@ -1,0 +1,22 @@
+---
+Checks: >
+  -*,
+  google-readability-*,
+  bugprone-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-branch-clone,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity,
+  -readability-use-anyofallof,
+  -readability-implicit-bool-conversion,
+  -google-runtime-references,
+  -google-explicit-constructor,
+  -readability-else-after-return,
+  -readability-redundant-declaration
+
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'gotorch/.*|nn/.*'
+FormatStyle: 'none'
+...

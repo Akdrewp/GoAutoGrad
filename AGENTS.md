@@ -32,6 +32,16 @@ When presented with a stubbed method or class containing algorithmic docstrings:
 2. Raise appropriate exceptions (`ValueError`, `IndexError`) on invalid inputs/mismatches as specified.
 3. Keep the output focused strictly on the requested snippet or file.
 
+## Docstring & API Contract Invariants
+All C++ and Python functions must include Google-style docstrings:
+1. **C++ (`.hpp`, `.cpp`)**:
+   - Use `/** ... */` blocks.
+   - Must contain: `@brief`, `@param` (for each argument), `@return`, and `@throw` (if exceptions are raised).
+2. **Python / Stubs (`.py`, `.pyi`)**:
+   - Use triple quotes `"""`.
+   - Must contain: One-line summary, `Args:`, `Returns:`, and `Raises:` (if exceptions can occur).
+3. **Validation**: Run `make lint` before declaring any task complete. Zero warnings allowed.
+
 ## Automation & Testing Workflow
 Whenever any file in `GoTorch/` is modified:
 1. **Lifecycle Hook Execution**: The `PostToolUse` hook in `.agents/hooks.json` automatically:
@@ -46,10 +56,6 @@ Whenever any file in `GoTorch/` is modified:
 3. **Human Review & Application**:
    - The primary agent presents the proposed test code and diffs to the human developer.
    - The primary agent applies the changes via tool edit requests (`write_to_file` / `replace_file_content`), ensuring full diff visibility and approval directly in the primary terminal.
-4. **Verification & Iterative Fixing**:
-   - The primary agent executes the targeted tests (`pytest` / `make test-cpp`) and related integration tests.
-   - If tests fail, the primary agent iterates on the `GoTorch/` implementation to resolve contract violations until all tests pass.
-
-
-
-
+4. **Verification & Test Failures (User Debugging)**:
+   - The primary agent executes targeted linters (`make lint`) and tests (`pytest` / `make test-cpp`) and related integration tests.
+   - **If any test fails, STOP immediately**: The human developer wants to debug test failures themselves. Do NOT attempt to iterate, auto-fix, or modify code after a failure. Report the failure, exact command to reproduce, and output to the user.

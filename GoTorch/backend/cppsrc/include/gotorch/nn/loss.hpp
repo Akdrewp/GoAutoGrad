@@ -1,0 +1,6 @@
+#ifndef GOTORCH_INCLUDE_NN_LOSS_HPP
+#define GOTORCH_INCLUDE_NN_LOSS_HPP
+
+#include "nn/loss.hpp"
+
+#endif  // GOTORCH_INCLUDE_NN_LOSS_HPP

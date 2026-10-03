@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include "ndarray.hpp"
+#include "nn/loss.hpp"
 
 namespace py = pybind11;
 
@@ -77,8 +78,14 @@ PYBIND11_MODULE(native_backend, m) {
         .def("tanh_backward", &NDArray::tanh_backward, py::arg("grad_output"))
         .def("sigmoid", &NDArray::sigmoid)
         .def("sigmoid_backward", &NDArray::sigmoid_backward, py::arg("grad_output"))
-        .def("leaky_relu", &NDArray::leaky_relu, py::arg("alpha") = 0.01f)
-        .def("leaky_relu_backward", &NDArray::leaky_relu_backward, py::arg("grad_output"), py::arg("alpha") = 0.01f)
+        .def("leaky_relu", &NDArray::leaky_relu, py::arg("alpha") = 0.01F)
+        .def("leaky_relu_backward", &NDArray::leaky_relu_backward, py::arg("grad_output"), py::arg("alpha") = 0.01F)
+        .def("mse_loss", [](const NDArray& self, const NDArray& target, const std::string& reduction) {
+            return gotorch::nn::mse_loss(self, target, reduction);
+        }, py::arg("target"), py::arg("reduction") = "mean")
+        .def("mse_loss_backward", [](const NDArray& self, const NDArray& target, const NDArray& grad_output, const std::string& reduction) {
+            return gotorch::nn::mse_loss_backward(self, target, grad_output, reduction);
+        }, py::arg("target"), py::arg("grad_output") = NDArray(), py::arg("reduction") = "mean")
         .def("sum", [](const NDArray& self, py::object dim, bool keepdim) -> NDArray {
             if (dim.is_none()) {
                 return self.sum();
@@ -129,4 +136,12 @@ PYBIND11_MODULE(native_backend, m) {
             }
             return "<NDArray shape=" + py::str(t).cast<std::string>() + ">";
         });
+
+    m.def("mse_loss", [](const NDArray& prediction, const NDArray& target, const std::string& reduction) {
+        return gotorch::nn::mse_loss(prediction, target, reduction);
+    }, py::arg("prediction"), py::arg("target"), py::arg("reduction") = "mean");
+
+    m.def("mse_loss_backward", [](const NDArray& prediction, const NDArray& target, const NDArray& grad_output, const std::string& reduction) {
+        return gotorch::nn::mse_loss_backward(prediction, target, grad_output, reduction);
+    }, py::arg("prediction"), py::arg("target"), py::arg("grad_output") = NDArray(), py::arg("reduction") = "mean");
 }

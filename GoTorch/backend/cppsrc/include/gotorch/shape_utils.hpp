@@ -6,6 +6,10 @@
 #include <string>
 #include <vector>
 
+// Forward declaration for ndarray template in global namespace
+template <typename T>
+class ndarray;
+
 namespace gotorch {
 namespace shape_utils {
 
@@ -148,6 +152,16 @@ void map_reduced_coordinate(
     bool keepdim,
     std::vector<size_t>& out_coord
 );
+
+/**
+ * @brief Sums an ndarray across broadcasted dimensions to match target_shape.
+ *
+ * @param in Input ndarray to reduce.
+ * @param target_shape Target unbroadcast shape.
+ * @return Reduced ndarray matching target_shape.
+ */
+template <typename T>
+::ndarray<T> unbroadcast(const ::ndarray<T>& in, const std::vector<size_t>& target_shape);
 
 }  // namespace shape_utils
 }  // namespace gotorch

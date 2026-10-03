@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "ndarray.hpp"
+#include "nn/loss.hpp"
 
 class ndarray_add : public ::testing::Test {
 protected:
@@ -956,6 +957,136 @@ TEST_F(ndarray_scalar, ShouldApplyActivationsToScalar) {
     EXPECT_FLOAT_EQ(s.leaky_relu_backward(grad, 0.1f)[0], 0.5f);
 }
 
+class ndarray_mse_loss : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
 
+TEST_F(ndarray_mse_loss, ShouldComputeMeanReductionByDefault) {
+    NDArray pred({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+    NDArray target({2.0f, 2.0f, 1.0f, 6.0f}, {2, 2});
 
+    NDArray loss = gotorch::nn::mse_loss(pred, target);
+    EXPECT_EQ(loss.shape, (std::vector<size_t>{}));
+    EXPECT_EQ(loss.size(), 1);
+    EXPECT_FLOAT_EQ(loss[0], 2.25f);
+}
 
+TEST_F(ndarray_mse_loss, ShouldComputeSumReduction) {
+    NDArray pred({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+    NDArray target({2.0f, 2.0f, 1.0f, 6.0f}, {2, 2});
+
+    NDArray loss = gotorch::nn::mse_loss(pred, target, gotorch::nn::Reduction::Sum);
+    EXPECT_EQ(loss.shape, (std::vector<size_t>{}));
+    EXPECT_EQ(loss.size(), 1);
+    EXPECT_FLOAT_EQ(loss[0], 9.0f);
+}
+
+TEST_F(ndarray_mse_loss, ShouldComputeNoneReduction) {
+    NDArray pred({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+    NDArray target({2.0f, 2.0f, 1.0f, 6.0f}, {2, 2});
+
+    NDArray loss = gotorch::nn::mse_loss(pred, target, "none");
+    EXPECT_EQ(loss.shape, (std::vector<size_t>{2, 2}));
+    EXPECT_EQ(loss.size(), 4);
+    EXPECT_FLOAT_EQ(loss[0], 1.0f);
+    EXPECT_FLOAT_EQ(loss[1], 0.0f);
+    EXPECT_FLOAT_EQ(loss[2], 4.0f);
+    EXPECT_FLOAT_EQ(loss[3], 4.0f);
+}
+
+TEST_F(ndarray_mse_loss, ShouldHandleBroadcastingBetweenShapes) {
+    NDArray pred({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+    NDArray target({1.0f, 2.0f}, {1, 2});
+
+    NDArray loss = gotorch::nn::mse_loss(pred, target, "mean");
+    // row 0: (1-1)^2 + (2-2)^2 = 0
+    // row 1: (3-1)^2 + (4-2)^2 = 4 + 4 = 8
+    // mean: 8 / 4 = 2.0
+    EXPECT_EQ(loss.shape, (std::vector<size_t>{}));
+    EXPECT_FLOAT_EQ(loss[0], 2.0f);
+}
+
+TEST_F(ndarray_mse_loss, ShouldHandleNonContiguousTransposedStridedArrays) {
+    NDArray pred({1.0f, 3.0f, 2.0f, 4.0f}, {2, 2});
+    NDArray target({2.0f, 2.0f, 1.0f, 6.0f}, {2, 2});
+
+    NDArray pred_t = pred.transpose();
+    EXPECT_FALSE(pred_t.is_contiguous());
+
+    NDArray loss = gotorch::nn::mse_loss(pred_t, target, "mean");
+    EXPECT_FLOAT_EQ(loss[0], 2.25f);
+}
+
+TEST_F(ndarray_mse_loss, ShouldThrowOnIncompatibleShapes) {
+    NDArray pred({1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}, {2, 3});
+    NDArray target({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+
+    EXPECT_THROW(gotorch::nn::mse_loss(pred, target), std::invalid_argument);
+}
+
+class ndarray_mse_loss_backward : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(ndarray_mse_loss_backward, ShouldComputeBackwardForMeanReduction) {
+    NDArray pred({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+    NDArray target({2.0f, 2.0f, 1.0f, 6.0f}, {2, 2});
+
+    NDArray grad = gotorch::nn::mse_loss_backward(pred, target, NDArray(), "mean");
+    EXPECT_EQ(grad.shape, (std::vector<size_t>{2, 2}));
+    // scale = 2 / 4 = 0.5
+    // diff = [-1, 0, 2, -2]
+    // grad = [-0.5, 0, 1.0, -1.0]
+    EXPECT_FLOAT_EQ(grad[0], -0.5f);
+    EXPECT_FLOAT_EQ(grad[1], 0.0f);
+    EXPECT_FLOAT_EQ(grad[2], 1.0f);
+    EXPECT_FLOAT_EQ(grad[3], -1.0f);
+}
+
+TEST_F(ndarray_mse_loss_backward, ShouldComputeBackwardForSumReduction) {
+    NDArray pred({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+    NDArray target({2.0f, 2.0f, 1.0f, 6.0f}, {2, 2});
+
+    NDArray grad = gotorch::nn::mse_loss_backward(pred, target, NDArray(), "sum");
+    EXPECT_EQ(grad.shape, (std::vector<size_t>{2, 2}));
+    // scale = 2
+    // grad = [-2.0, 0, 4.0, -4.0]
+    EXPECT_FLOAT_EQ(grad[0], -2.0f);
+    EXPECT_FLOAT_EQ(grad[1], 0.0f);
+    EXPECT_FLOAT_EQ(grad[2], 4.0f);
+    EXPECT_FLOAT_EQ(grad[3], -4.0f);
+}
+
+TEST_F(ndarray_mse_loss_backward, ShouldComputeBackwardForNoneReductionWithGradientTensor) {
+    NDArray pred({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
+    NDArray target({2.0f, 2.0f, 1.0f, 6.0f}, {2, 2});
+    NDArray grad_out({0.5f, 1.0f, 2.0f, 0.25f}, {2, 2});
+
+    NDArray grad = gotorch::nn::mse_loss_backward(pred, target, grad_out, "none");
+    EXPECT_EQ(grad.shape, (std::vector<size_t>{2, 2}));
+    // 2 * diff * grad_out
+    // diff = [-1, 0, 2, -2]
+    // 2 * diff = [-2, 0, 4, -4]
+    // grad = [-1.0, 0.0, 8.0, -1.0]
+    EXPECT_FLOAT_EQ(grad[0], -1.0f);
+    EXPECT_FLOAT_EQ(grad[1], 0.0f);
+    EXPECT_FLOAT_EQ(grad[2], 8.0f);
+    EXPECT_FLOAT_EQ(grad[3], -1.0f);
+}
+
+TEST_F(ndarray_mse_loss_backward, ShouldHandleNonContiguousTransposedInputs) {
+    NDArray pred({1.0f, 3.0f, 2.0f, 4.0f}, {2, 2});
+    NDArray target({2.0f, 2.0f, 1.0f, 6.0f}, {2, 2});
+
+    NDArray pred_t = pred.transpose();
+    NDArray grad = gotorch::nn::mse_loss_backward(pred_t, target, NDArray(), "mean");
+    EXPECT_EQ(grad.shape, (std::vector<size_t>{2, 2}));
+    EXPECT_FLOAT_EQ(grad[0], -0.5f);
+    EXPECT_FLOAT_EQ(grad[1], 0.0f);
+    EXPECT_FLOAT_EQ(grad[2], 1.0f);
+    EXPECT_FLOAT_EQ(grad[3], -1.0f);
+}

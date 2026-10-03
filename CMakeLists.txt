@@ -29,6 +29,7 @@ set(GOTORCH_SRCS
     GoTorch/backend/cppsrc/src/shape_utils.cpp
     GoTorch/backend/cppsrc/src/ndarray.cpp
     GoTorch/backend/cppsrc/src/kernels.cpp
+    GoTorch/backend/cppsrc/nn/loss.cpp
 )
 
 if(TARGET pybind11::module)

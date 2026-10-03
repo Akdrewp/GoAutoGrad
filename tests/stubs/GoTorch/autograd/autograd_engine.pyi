@@ -1,5 +1,4 @@
 from GoTorch.autograd.operations import Add as Add
-from GoTorch.backend.native_backend import NDArray as NDArray
 from GoTorch.tensor import Tensor as Tensor
 
 class AutogradEngine:

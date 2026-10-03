@@ -35,6 +35,10 @@ class NDArray:
         """leaky_relu_backward(self: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray, alpha: typing.SupportsFloat | typing.SupportsIndex = 0.009999999776482582) -> GoTorch.backend.native_backend.NDArray"""
     def matmul(self, other: NDArray) -> NDArray:
         """matmul(self: GoTorch.backend.native_backend.NDArray, other: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def mse_loss(self, target: NDArray, reduction: str = ...) -> NDArray:
+        """mse_loss(self: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
+    def mse_loss_backward(self, target: NDArray, grad_output: NDArray = ..., reduction: str = ...) -> NDArray:
+        """mse_loss_backward(self: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray = <GoTorch.backend.native_backend.NDArray object at 0x7904cdf7ceb0>, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
     def ones_like(self) -> NDArray:
         """ones_like(self: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
     def relu(self) -> NDArray:
@@ -83,3 +87,8 @@ class NDArray:
     @property
     def strides(self) -> tuple:
         """(arg0: GoTorch.backend.native_backend.NDArray) -> tuple"""
+
+def mse_loss(prediction: NDArray, target: NDArray, reduction: str = ...) -> NDArray:
+    """mse_loss(prediction: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
+def mse_loss_backward(prediction: NDArray, target: NDArray, grad_output: NDArray = ..., reduction: str = ...) -> NDArray:
+    """mse_loss_backward(prediction: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray = <NDArray shape=()>, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""

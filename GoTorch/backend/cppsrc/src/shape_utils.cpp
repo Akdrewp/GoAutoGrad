@@ -1,4 +1,5 @@
 #include "gotorch/shape_utils.hpp"
+#include "gotorch/ndarray.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -184,6 +185,39 @@ void map_reduced_coordinate(
         }
     }
 }
+
+template <typename T>
+ndarray<T> unbroadcast(const ndarray<T>& in, const std::vector<size_t>& target_shape) {
+    if (in.isEmpty() || in.shape == target_shape) {
+        return in;
+    }
+    if (target_shape.empty()) {
+        return in.sum();
+    }
+
+    ndarray<T> curr = in;
+
+    // 1. Sum over prepended leading dimensions
+    if (curr.shape.size() > target_shape.size()) {
+        size_t num_leading = curr.shape.size() - target_shape.size();
+        for (size_t i = 0; i < num_leading; ++i) {
+            curr = curr.sum(0, false);
+        }
+    }
+
+    // 2. Sum over dimensions where target dimension is 1 but current dimension > 1
+    for (size_t dim_idx = 0; dim_idx < target_shape.size(); ++dim_idx) {
+        if (target_shape[dim_idx] == 1 && curr.shape[dim_idx] > 1) {
+            curr = curr.sum(static_cast<int>(dim_idx), true);
+        }
+    }
+
+    return curr;
+}
+
+template ndarray<float> unbroadcast<float>(const ndarray<float>&, const std::vector<size_t>&);
+template ndarray<double> unbroadcast<double>(const ndarray<double>&, const std::vector<size_t>&);
+template ndarray<int> unbroadcast<int>(const ndarray<int>&, const std::vector<size_t>&);
 
 }  // namespace shape_utils
 }  // namespace gotorch
