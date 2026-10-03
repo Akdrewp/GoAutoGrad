@@ -104,6 +104,8 @@ stubs:
 
 # 8. Linting & Static Analysis (C++ clang-tidy & Python ruff, excluding tests)
 lint-cpp:
+	@echo "==> Verifying Google-style C++ docstrings..."
+	@$(PYTHON) scripts/check_docstrings.py
 	@echo "==> Running clang-tidy on C++ backend sources..."
 	@$(CLANG_TIDY) $(CPP_SRCS) -- -std=c++17 $(INCLUDES)
 	@$(CLANG_TIDY) $(CPP_SRC_DIR)/bindings.cpp -- -std=c++17 $(INCLUDES) $(PY_INCLUDES)

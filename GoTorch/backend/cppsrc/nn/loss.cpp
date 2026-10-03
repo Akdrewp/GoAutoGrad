@@ -14,6 +14,13 @@
 namespace gotorch {
 namespace nn {
 
+/**
+ * @brief Parses reduction mode from string representation.
+ *
+ * @param reduction_str String name of reduction ("mean", "sum", "none").
+ * @return Parsed Reduction enum value.
+ * @throw std::invalid_argument If reduction string is unrecognized.
+ */
 Reduction parse_reduction(const std::string& reduction_str) {
     if (reduction_str == "mean") {
         return Reduction::Mean;
@@ -29,6 +36,12 @@ Reduction parse_reduction(const std::string& reduction_str) {
     );
 }
 
+/**
+ * @brief Converts Reduction enum to its string representation.
+ *
+ * @param reduction Reduction enum value.
+ * @return String representation ("mean", "sum", "none").
+ */
 std::string reduction_to_string(Reduction reduction) {
     switch (reduction) {
         case Reduction::Mean:
@@ -41,6 +54,18 @@ std::string reduction_to_string(Reduction reduction) {
     return "unknown";
 }
 
+/**
+ * @brief Computes Mean Squared Error (MSE) loss between prediction and target.
+ *
+ * Evaluates element-wise squared differences (p - t)^2 using binary kernel
+ * execution and reduces across all elements according to the reduction mode.
+ *
+ * @param prediction Input predicted values.
+ * @param target Ground truth target values with broadcast-compatible shape.
+ * @param reduction Reduction mode (Mean, Sum, None).
+ * @return Computed loss ndarray (scalar for Mean/Sum, matching shape for None).
+ * @throw std::invalid_argument If shapes cannot be broadcast together.
+ */
 template <typename T>
 ndarray<T> mse_loss(
     const ndarray<T>& prediction,
@@ -73,6 +98,15 @@ ndarray<T> mse_loss(
     return ndarray<T>(std::vector<T>{total}, {});
 }
 
+/**
+ * @brief Computes MSE loss accepting string reduction mode.
+ *
+ * @param prediction Input predicted values.
+ * @param target Ground truth target values.
+ * @param reduction String reduction mode ("mean", "sum", "none").
+ * @return Computed loss ndarray.
+ * @throw std::invalid_argument If reduction string is unrecognized or shapes cannot broadcast.
+ */
 template <typename T>
 ndarray<T> mse_loss(
     const ndarray<T>& prediction,
@@ -82,6 +116,22 @@ ndarray<T> mse_loss(
     return mse_loss(prediction, target, parse_reduction(reduction));
 }
 
+/**
+ * @brief Computes backward gradient of MSE loss with respect to prediction.
+ *
+ * Evaluates the analytical gradient:
+ * - None: 2 * (p - t) * grad_output
+ * - Sum:  2 * (p - t) * grad_output
+ * - Mean: (2 / N) * (p - t) * grad_output
+ * and automatically unbroadcasts to match prediction operand shape.
+ *
+ * @param prediction Input predicted values.
+ * @param target Ground truth target values.
+ * @param grad_output Gradient of loss with respect to output.
+ * @param reduction Reduction mode applied in forward pass.
+ * @return Gradient ndarray with respect to prediction matching prediction.shape.
+ * @throw std::invalid_argument If shapes cannot broadcast together.
+ */
 template <typename T>
 ndarray<T> mse_loss_backward(
     const ndarray<T>& prediction,
@@ -130,6 +180,16 @@ ndarray<T> mse_loss_backward(
     return shape_utils::unbroadcast(full_grad, prediction.shape);
 }
 
+/**
+ * @brief Computes backward gradient of MSE loss accepting string reduction mode.
+ *
+ * @param prediction Input predicted values.
+ * @param target Ground truth target values.
+ * @param grad_output Gradient of loss with respect to output.
+ * @param reduction String reduction mode ("mean", "sum", "none").
+ * @return Gradient ndarray with respect to prediction.
+ * @throw std::invalid_argument If reduction is unrecognized or shapes cannot broadcast.
+ */
 template <typename T>
 ndarray<T> mse_loss_backward(
     const ndarray<T>& prediction,
