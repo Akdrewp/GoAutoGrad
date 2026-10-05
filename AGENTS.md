@@ -37,6 +37,28 @@ All C++ and Python functions must include Google-style docstrings:
 1. **C++ (`.hpp`, `.cpp`)**:
    - Use `/** ... */` blocks.
    - Must contain: `@brief`, `@param` (for each argument), `@return`, and `@throw` (if exceptions are raised).
+   - **Example**:
+     ```cpp
+     /**
+      * @brief Multiplies two tensors along their inner dimensions.
+      *
+      * 1. Validate that the inner dimensions are compatible for multiplication.
+      * 2. Evaluate the dot product across the shared dimension to form the output tensor.
+      *
+      * @param a Left-hand tensor (..., M, K).
+      * @param b Right-hand tensor (..., K, N).
+      * @return NDArray Product tensor (..., M, N).
+      * @throw std::invalid_argument If inner dimensions mismatch.
+      */
+     NDArray matmul(const NDArray& a, const NDArray& b) {
+       // 1. Check inner dimension alignment
+       if (a.shape().back() != b.shape()[b.ndim() - 2]) {
+         throw std::invalid_argument("Dimension mismatch");
+       }
+       // 2. Perform matrix multiplication kernel
+       // ...
+     }
+     ```
 2. **Python / Stubs (`.py`, `.pyi`)**:
    - Use triple quotes `"""`.
    - Must contain: One-line summary, `Args:`, `Returns:`, and `Raises:` (if exceptions can occur).

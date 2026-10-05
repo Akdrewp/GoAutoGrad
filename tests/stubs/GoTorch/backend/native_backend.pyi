@@ -23,8 +23,12 @@ class NDArray:
 
         2. __init__(self: GoTorch.backend.native_backend.NDArray, data: collections.abc.Sequence[typing.SupportsFloat | typing.SupportsIndex], shape: collections.abc.Sequence[typing.SupportsInt | typing.SupportsIndex], strides: collections.abc.Sequence[typing.SupportsInt | typing.SupportsIndex] = [], offset: typing.SupportsInt | typing.SupportsIndex = 0) -> None
         """
+    def BCELoss(self, target: NDArray, reduction: str = ...) -> NDArray:
+        """BCELoss(self: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
     def add(self, addend: NDArray) -> NDArray:
         """add(self: GoTorch.backend.native_backend.NDArray, addend: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
+    def bce_loss_backward(self, target: NDArray, grad_output: NDArray = ..., reduction: str = ...) -> NDArray:
+        """bce_loss_backward(self: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray = <GoTorch.backend.native_backend.NDArray object at 0x7b957114ddf0>, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
     def isEmpty(self) -> bool:
         """isEmpty(self: GoTorch.backend.native_backend.NDArray) -> bool"""
     def is_contiguous(self) -> bool:
@@ -38,7 +42,7 @@ class NDArray:
     def mse_loss(self, target: NDArray, reduction: str = ...) -> NDArray:
         """mse_loss(self: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
     def mse_loss_backward(self, target: NDArray, grad_output: NDArray = ..., reduction: str = ...) -> NDArray:
-        """mse_loss_backward(self: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray = <GoTorch.backend.native_backend.NDArray object at 0x7fa85d237730>, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
+        """mse_loss_backward(self: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray = <GoTorch.backend.native_backend.NDArray object at 0x7b95711712f0>, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
     def ones_like(self) -> NDArray:
         """ones_like(self: GoTorch.backend.native_backend.NDArray) -> GoTorch.backend.native_backend.NDArray"""
     def relu(self) -> NDArray:
@@ -88,7 +92,11 @@ class NDArray:
     def strides(self) -> tuple:
         """(arg0: GoTorch.backend.native_backend.NDArray) -> tuple"""
 
+def BCELoss(in_features: NDArray, true_features: NDArray, reduction: str = ...) -> NDArray:
+    """BCELoss(in_features: GoTorch.backend.native_backend.NDArray, true_features: GoTorch.backend.native_backend.NDArray, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
+def bce_loss_backward(in_features: NDArray, true_features: NDArray, grad_output: NDArray = ..., reduction: str = ...) -> NDArray:
+    """bce_loss_backward(in_features: GoTorch.backend.native_backend.NDArray, true_features: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray = <NDArray shape=(0,)>, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
 def mse_loss(prediction: NDArray, target: NDArray, reduction: str = ...) -> NDArray:
     """mse_loss(prediction: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
 def mse_loss_backward(prediction: NDArray, target: NDArray, grad_output: NDArray = ..., reduction: str = ...) -> NDArray:
-    """mse_loss_backward(prediction: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray = <NDArray shape=()>, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""
+    """mse_loss_backward(prediction: GoTorch.backend.native_backend.NDArray, target: GoTorch.backend.native_backend.NDArray, grad_output: GoTorch.backend.native_backend.NDArray = <NDArray shape=(0,)>, reduction: str = 'mean') -> GoTorch.backend.native_backend.NDArray"""

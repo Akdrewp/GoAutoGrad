@@ -11,12 +11,7 @@ void ndarray<T>::CreateDeepCopy(const ndarray& other) {
     shape = other.shape;
     strides = other.strides;
     offset = other.offset;
-
-    if (other.storage) {
-        storage = std::make_shared<Storage<T>>(other.storage->data);
-    } else {
-        storage = nullptr;
-    }
+    storage = std::make_shared<Storage<T>>(other.storage->data);
 }
 
 template <typename T>

@@ -39,6 +39,19 @@ Reduction parse_reduction(const std::string& reduction_str);
 std::string reduction_to_string(Reduction reduction);
 
 /**
+ * @brief Applies reduction operation to an unreduced loss tensor.
+ *
+ * @param loss Unreduced loss ndarray.
+ * @param reduction Reduction mode (Mean, Sum, None). Defaults to Mean.
+ * @return Reduced loss ndarray (scalar for Mean/Sum, matching shape for None).
+ */
+template <typename T = float>
+ndarray<T> apply_reduction(
+    const ndarray<T>& loss,
+    Reduction reduction = Reduction::Mean
+);
+
+/**
  * @brief Computes Mean Squared Error (MSE) loss between prediction and target.
  *
  * Measures the element-wise squared error: (prediction - target)^2, reduced
@@ -178,6 +191,74 @@ public:
         return mse_loss_backward(prediction, target, grad_output, reduction);
     }
 };
+
+/**
+ * @brief Computes Binary Cross Entropy (BCE) loss between prediction and target.
+ *
+ * @param in_features Input predicted values.
+ * @param true_features Ground truth target values with broadcast-compatible shape.
+ * @param reduction Reduction mode (Mean, Sum, None). Defaults to Mean.
+ * @return NDArray containing the computed loss (scalar for Mean/Sum, matching shape for None).
+ * @throws std::invalid_argument If shapes cannot be broadcast together.
+ */
+template <typename T = float>
+ndarray<T> BCELoss(
+    const ndarray<T>& in_features,
+    const ndarray<T>& true_features,
+    Reduction reduction = Reduction::Mean
+);
+
+/**
+ * @brief Overload of BCELoss accepting string reduction mode.
+ *
+ * @param in_features Input predicted values.
+ * @param true_features Ground truth target values.
+ * @param reduction String reduction mode ("mean", "sum", "none").
+ * @return NDArray containing the computed loss.
+ * @throws std::invalid_argument If reduction string is unrecognized or shapes cannot be broadcast.
+ */
+template <typename T = float>
+ndarray<T> BCELoss(
+    const ndarray<T>& in_features,
+    const ndarray<T>& true_features,
+    const std::string& reduction
+);
+
+/**
+ * @brief Computes backward gradient of BCE loss with respect to in_features.
+ *
+ * @param in_features Input predicted values.
+ * @param true_features Ground truth target values.
+ * @param grad_output Gradient of loss with respect to output.
+ * @param reduction Reduction mode used during the forward pass.
+ * @return Gradient ndarray with respect to in_features.
+ * @throws std::invalid_argument If shapes cannot be broadcast or grad_output shape mismatches.
+ */
+template <typename T = float>
+ndarray<T> bce_loss_backward(
+    const ndarray<T>& in_features,
+    const ndarray<T>& true_features,
+    const ndarray<T>& grad_output = ndarray<T>(),
+    Reduction reduction = Reduction::Mean
+);
+
+/**
+ * @brief Overload of bce_loss_backward accepting string reduction mode.
+ *
+ * @param in_features Input predicted values.
+ * @param true_features Ground truth target values.
+ * @param grad_output Gradient of loss with respect to output.
+ * @param reduction String reduction mode ("mean", "sum", "none").
+ * @return Gradient ndarray with respect to in_features.
+ * @throws std::invalid_argument If reduction string is unrecognized or shapes cannot be broadcast.
+ */
+template <typename T = float>
+ndarray<T> bce_loss_backward(
+    const ndarray<T>& in_features,
+    const ndarray<T>& true_features,
+    const ndarray<T>& grad_output,
+    const std::string& reduction
+);
 
 }  // namespace nn
 }  // namespace gotorch

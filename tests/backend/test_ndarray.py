@@ -562,6 +562,224 @@ class TestNDArrayScalar:
         assert s.leaky_relu_backward(grad, alpha=0.1)[()] == pytest.approx(0.5, rel=1e-5)
 
 
+class TestNDArrayBCELoss:
+    """Verifies binary cross entropy loss (BCELoss) forward operations."""
+
+    def test_bce_loss_default_reduction_mean(self, backend) -> None:
+        """Default reduction is 'mean' and returns a 0-D scalar."""
+        preds = [0.2, 0.7, 0.4, 0.8]
+        targets = [0.0, 1.0, 0.0, 1.0]
+        a = backend.NDArray(data=preds, shape=(4,))
+        t = backend.NDArray(data=targets, shape=(4,))
+
+        res_m = a.BCELoss(t)
+        res_f = backend.BCELoss(a, t)
+
+        assert res_m.shape == ()
+        assert res_f.shape == ()
+        assert res_m.size() == 1
+        assert res_f.size() == 1
+
+        expected = sum(-(y * math.log(p) + (1.0 - y) * math.log(1.0 - p)) for p, y in zip(preds, targets)) / 4.0
+        assert pytest.approx(res_m[()], rel=1e-5, abs=1e-6) == expected
+        assert pytest.approx(res_f[()], rel=1e-5, abs=1e-6) == expected
+
+    def test_bce_loss_reduction_sum(self, backend) -> None:
+        """Reduction 'sum' computes total unreduced loss sum."""
+        preds = [0.1, 0.6, 0.3, 0.9]
+        targets = [0.0, 1.0, 1.0, 0.0]
+        a = backend.NDArray(data=preds, shape=(4,))
+        t = backend.NDArray(data=targets, shape=(4,))
+
+        res_m = a.BCELoss(t, reduction="sum")
+        res_f = backend.BCELoss(a, t, reduction="sum")
+
+        assert res_m.shape == ()
+        assert res_f.shape == ()
+        expected = sum(-(y * math.log(p) + (1.0 - y) * math.log(1.0 - p)) for p, y in zip(preds, targets))
+        assert pytest.approx(res_m[()], rel=1e-5, abs=1e-6) == expected
+        assert pytest.approx(res_f[()], rel=1e-5, abs=1e-6) == expected
+
+    def test_bce_loss_reduction_none(self, backend) -> None:
+        """Reduction 'none' preserves element-wise loss shape."""
+        preds = [0.25, 0.5, 0.75]
+        targets = [1.0, 0.0, 1.0]
+        a = backend.NDArray(data=preds, shape=(3,))
+        t = backend.NDArray(data=targets, shape=(3,))
+
+        res_m = a.BCELoss(t, reduction="none")
+        res_f = backend.BCELoss(a, t, reduction="none")
+
+        assert res_m.shape == (3,)
+        assert res_f.shape == (3,)
+        expected = [-(y * math.log(p) + (1.0 - y) * math.log(1.0 - p)) for p, y in zip(preds, targets)]
+        for act_m, act_f, exp in zip(res_m.data, res_f.data, expected):
+            assert pytest.approx(act_m, rel=1e-5, abs=1e-6) == exp
+            assert pytest.approx(act_f, rel=1e-5, abs=1e-6) == exp
+
+    def test_bce_loss_broadcast_dimensions(self, backend) -> None:
+        """Tests broadcasting between prediction and target: (2, 1) and (1, 3) -> (2, 3)."""
+        preds = [0.2, 0.8]
+        targets = [0.0, 0.5, 1.0]
+        a = backend.NDArray(data=preds, shape=(2, 1))
+        t = backend.NDArray(data=targets, shape=(1, 3))
+
+        res_none = a.BCELoss(t, reduction="none")
+        assert res_none.shape == (2, 3)
+
+        res_mean = a.BCELoss(t, reduction="mean")
+        assert res_mean.shape == ()
+
+        res_sum = a.BCELoss(t, reduction="sum")
+        assert res_sum.shape == ()
+
+        expected_elements = []
+        for p in preds:
+            for y in targets:
+                expected_elements.append(-(y * math.log(p) + (1.0 - y) * math.log(1.0 - p)))
+
+        for act, exp in zip(res_none.data, expected_elements):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+        assert pytest.approx(res_mean[()], rel=1e-5, abs=1e-6) == sum(expected_elements) / 6.0
+        assert pytest.approx(res_sum[()], rel=1e-5, abs=1e-6) == sum(expected_elements)
+
+    def test_bce_loss_strided_non_contiguous(self, backend) -> None:
+        """Tests BCELoss on non-contiguous transposed input."""
+        raw_preds = [0.1, 0.4, 0.7, 0.3, 0.6, 0.9]
+        a = backend.NDArray(data=raw_preds, shape=(2, 3)).transpose()
+        assert not a.is_contiguous()
+
+        targets = [0.0, 1.0, 1.0, 0.0, 0.0, 1.0]
+        t = backend.NDArray(data=targets, shape=(3, 2))
+
+        res_m = a.BCELoss(t, reduction="mean")
+        res_f = backend.BCELoss(a, t, reduction="mean")
+
+        a_transposed_vals = [0.1, 0.3, 0.4, 0.6, 0.7, 0.9]
+        expected = sum(-(y * math.log(p) + (1.0 - y) * math.log(1.0 - p)) for p, y in zip(a_transposed_vals, targets)) / 6.0
+
+        assert pytest.approx(res_m[()], rel=1e-5, abs=1e-6) == expected
+        assert pytest.approx(res_f[()], rel=1e-5, abs=1e-6) == expected
+
+    def test_bce_loss_shape_mismatch_raises(self, backend) -> None:
+        """Non-broadcastable shape mismatch must raise ValueError."""
+        a = backend.NDArray(data=[0.2] * 6, shape=(2, 3))
+        t = backend.NDArray(data=[0.5] * 4, shape=(4,))
+        with pytest.raises(ValueError, match="shape mismatch"):
+            _ = a.BCELoss(t)
+        with pytest.raises(ValueError, match="shape mismatch"):
+            _ = backend.BCELoss(a, t)
+
+
+class TestNDArrayBCELossBackward:
+    """Verifies binary cross entropy loss backward gradient computation."""
+
+    def test_bce_loss_backward_default_grad_output_mean(self, backend) -> None:
+        """Default grad_output with reduction='mean' multiplies by (1 / N)."""
+        preds = [0.2, 0.7, 0.4, 0.8]
+        targets = [0.0, 1.0, 0.0, 1.0]
+        a = backend.NDArray(data=preds, shape=(4,))
+        t = backend.NDArray(data=targets, shape=(4,))
+
+        res_m = a.bce_loss_backward(t)
+        res_f = backend.bce_loss_backward(a, t)
+
+        assert res_m.shape == (4,)
+        assert res_f.shape == (4,)
+
+        expected = [((p - y) / (p * (1.0 - p))) / 4.0 for p, y in zip(preds, targets)]
+        for act_m, act_f, exp in zip(res_m.data, res_f.data, expected):
+            assert pytest.approx(act_m, rel=1e-5, abs=1e-6) == exp
+            assert pytest.approx(act_f, rel=1e-5, abs=1e-6) == exp
+
+    def test_bce_loss_backward_custom_grad_output_mean(self, backend) -> None:
+        """Explicit scalar grad_output scales the mean gradient."""
+        preds = [0.2, 0.5, 0.8]
+        targets = [0.0, 1.0, 0.0]
+        a = backend.NDArray(data=preds, shape=(3,))
+        t = backend.NDArray(data=targets, shape=(3,))
+        g = backend.NDArray(data=[3.0], shape=())
+
+        res_m = a.bce_loss_backward(t, grad_output=g, reduction="mean")
+        res_f = backend.bce_loss_backward(a, t, grad_output=g, reduction="mean")
+
+        assert res_m.shape == (3,)
+        assert res_f.shape == (3,)
+
+        expected = [3.0 * ((p - y) / (p * (1.0 - p))) / 3.0 for p, y in zip(preds, targets)]
+        for act_m, act_f, exp in zip(res_m.data, res_f.data, expected):
+            assert pytest.approx(act_m, rel=1e-5, abs=1e-6) == exp
+            assert pytest.approx(act_f, rel=1e-5, abs=1e-6) == exp
+
+    def test_bce_loss_backward_reduction_sum(self, backend) -> None:
+        """Reduction 'sum' computes unscaled gradient (or scaled by scalar grad_output)."""
+        preds = [0.2, 0.7, 0.4]
+        targets = [0.0, 1.0, 0.0]
+        a = backend.NDArray(data=preds, shape=(3,))
+        t = backend.NDArray(data=targets, shape=(3,))
+
+        res_default = a.bce_loss_backward(t, reduction="sum")
+        expected_default = [(p - y) / (p * (1.0 - p)) for p, y in zip(preds, targets)]
+        for act, exp in zip(res_default.data, expected_default):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+        g = backend.NDArray(data=[0.5], shape=())
+        res_scaled = a.bce_loss_backward(t, grad_output=g, reduction="sum")
+        for act, exp in zip(res_scaled.data, expected_default):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == 0.5 * exp
+
+    def test_bce_loss_backward_reduction_none(self, backend) -> None:
+        """Reduction 'none' multiplies element-wise with grad_output."""
+        preds = [0.2, 0.6, 0.8]
+        targets = [0.0, 1.0, 0.0]
+        grads = [2.0, 0.5, 1.5]
+        a = backend.NDArray(data=preds, shape=(3,))
+        t = backend.NDArray(data=targets, shape=(3,))
+        g = backend.NDArray(data=grads, shape=(3,))
+
+        res_m = a.bce_loss_backward(t, grad_output=g, reduction="none")
+        res_f = backend.bce_loss_backward(a, t, grad_output=g, reduction="none")
+
+        assert res_m.shape == (3,)
+        assert res_f.shape == (3,)
+
+        expected = [dy * (p - y) / (p * (1.0 - p)) for p, y, dy in zip(preds, targets, grads)]
+        for act_m, act_f, exp in zip(res_m.data, res_f.data, expected):
+            assert pytest.approx(act_m, rel=1e-5, abs=1e-6) == exp
+            assert pytest.approx(act_f, rel=1e-5, abs=1e-6) == exp
+
+    def test_bce_loss_backward_strided_non_contiguous(self, backend) -> None:
+        """Tests bce_loss_backward on non-contiguous transposed input."""
+        raw_preds = [0.2, 0.4, 0.6, 0.3, 0.5, 0.7]
+        a = backend.NDArray(data=raw_preds, shape=(2, 3)).transpose()
+        assert not a.is_contiguous()
+
+        targets = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
+        t = backend.NDArray(data=targets, shape=(3, 2))
+
+        res = a.bce_loss_backward(t, reduction="mean")
+        assert res.shape == (3, 2)
+        assert res.is_contiguous()
+
+        a_transposed_vals = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+        expected = [((p - y) / (p * (1.0 - p))) / 6.0 for p, y in zip(a_transposed_vals, targets)]
+        for act, exp in zip(res.data, expected):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+    def test_bce_loss_backward_shape_mismatch_raises(self, backend) -> None:
+        """Incompatible prediction/target or grad_output shapes must raise ValueError."""
+        a = backend.NDArray(data=[0.3] * 4, shape=(2, 2))
+        t = backend.NDArray(data=[0.5] * 3, shape=(3,))
+        with pytest.raises(ValueError, match="shape mismatch"):
+            _ = a.bce_loss_backward(t)
+
+        valid_t = backend.NDArray(data=[0.5] * 4, shape=(2, 2))
+        bad_g = backend.NDArray(data=[1.0] * 3, shape=(3,))
+        with pytest.raises(ValueError, match="shape mismatch"):
+            _ = a.bce_loss_backward(valid_t, grad_output=bad_g, reduction="none")
+
+
+
 
 
 

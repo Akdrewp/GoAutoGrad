@@ -60,7 +60,7 @@ public:
      * @brief Default constructor creating an empty ndarray.
      */
     ndarray()
-        : storage(std::make_shared<Storage<T>>()), shape({}), strides({}), offset(0) {}
+        : storage(std::make_shared<Storage<T>>()), shape({0}), strides({1}), offset(0) {}
 
     /**
      * @brief Constructor creating an ndarray by deep copying an existing ndarray.
@@ -141,10 +141,10 @@ public:
     }
 
     /**
-     * @brief Checks whether the storage is uninitialized or contains zero elements.
+     * @brief Checks whether the ndarray contains zero elements based on its shape.
      */
     bool isEmpty() const {
-        return !storage || storage->data.empty();
+        return size() == 0;
     }
 
     /**

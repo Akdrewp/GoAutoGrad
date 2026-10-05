@@ -262,5 +262,149 @@ class TestNDArrayPyTorchValidation:
             for c in range(gt_t.shape[1]):
                 assert pytest.approx(gt_t[r, c], rel=1e-5, abs=1e-6) == t_t[r, c].item()
 
+    def test_random_float_bce_loss_mean_validation(self, backend) -> None:
+        """Validates GoTorch BCELoss(reduction='mean') against torch.nn.functional.binary_cross_entropy."""
+        random.seed(301)
+        shape = (4, 5)
+        num_elements = shape[0] * shape[1]
+        raw_pred = [random.uniform(0.01, 0.99) for _ in range(num_elements)]
+        raw_target = [random.choice([0.0, 1.0]) for _ in range(num_elements)]
+
+        gt_pred = backend.NDArray(data=raw_pred, shape=shape)
+        gt_target = backend.NDArray(data=raw_target, shape=shape)
+        gt_res_m = gt_pred.BCELoss(gt_target, reduction="mean")
+        gt_res_f = backend.BCELoss(gt_pred, gt_target, reduction="mean")
+
+        t_pred = torch.tensor(raw_pred, dtype=torch.float32).reshape(shape)
+        t_target = torch.tensor(raw_target, dtype=torch.float32).reshape(shape)
+        t_res = torch.nn.functional.binary_cross_entropy(t_pred, t_target, reduction="mean")
+
+        assert gt_res_m.shape == ()
+        assert gt_res_f.shape == ()
+        assert pytest.approx(gt_res_m[()], rel=1e-5, abs=1e-6) == t_res.item()
+        assert pytest.approx(gt_res_f[()], rel=1e-5, abs=1e-6) == t_res.item()
+
+    def test_random_float_bce_loss_sum_and_none_validation(self, backend) -> None:
+        """Validates GoTorch BCELoss with 'sum' and 'none' reductions against PyTorch."""
+        random.seed(302)
+        shape = (3, 3, 2)
+        num_elements = 18
+        raw_pred = [random.uniform(0.05, 0.95) for _ in range(num_elements)]
+        raw_target = [random.uniform(0.0, 1.0) for _ in range(num_elements)]
+
+        gt_pred = backend.NDArray(data=raw_pred, shape=shape)
+        gt_target = backend.NDArray(data=raw_target, shape=shape)
+        t_pred = torch.tensor(raw_pred, dtype=torch.float32).reshape(shape)
+        t_target = torch.tensor(raw_target, dtype=torch.float32).reshape(shape)
+
+        gt_sum = gt_pred.BCELoss(gt_target, reduction="sum")
+        t_sum = torch.nn.functional.binary_cross_entropy(t_pred, t_target, reduction="sum")
+        assert gt_sum.shape == ()
+        assert pytest.approx(gt_sum[()], rel=1e-5, abs=1e-6) == t_sum.item()
+
+        gt_none = gt_pred.BCELoss(gt_target, reduction="none")
+        t_none = torch.nn.functional.binary_cross_entropy(t_pred, t_target, reduction="none")
+        assert gt_none.shape == shape
+        for act, exp in zip(gt_none.data, t_none.flatten().tolist()):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+    def test_random_float_bce_loss_backward_mean_validation(self, backend) -> None:
+        """Validates bce_loss_backward(reduction='mean') with default & custom grad_output against PyTorch."""
+        random.seed(303)
+        shape = (4, 6)
+        num_elements = 24
+        raw_pred = [random.uniform(0.05, 0.95) for _ in range(num_elements)]
+        raw_target = [random.choice([0.0, 1.0]) for _ in range(num_elements)]
+
+        gt_pred = backend.NDArray(data=raw_pred, shape=shape)
+        gt_target = backend.NDArray(data=raw_target, shape=shape)
+        gt_grad_m = gt_pred.bce_loss_backward(gt_target, reduction="mean")
+        gt_grad_f = backend.bce_loss_backward(gt_pred, gt_target, reduction="mean")
+
+        t_pred = torch.tensor(raw_pred, dtype=torch.float32).reshape(shape).requires_grad_(True)
+        t_target = torch.tensor(raw_target, dtype=torch.float32).reshape(shape)
+        t_loss = torch.nn.functional.binary_cross_entropy(t_pred, t_target, reduction="mean")
+        t_loss.backward()
+
+        assert gt_grad_m.shape == shape
+        assert gt_grad_f.shape == shape
+        for act_m, act_f, exp in zip(gt_grad_m.data, gt_grad_f.data, t_pred.grad.flatten().tolist()):
+            assert pytest.approx(act_m, rel=1e-5, abs=1e-6) == exp
+            assert pytest.approx(act_f, rel=1e-5, abs=1e-6) == exp
+
+        scale = 2.5
+        gt_scale = backend.NDArray(data=[scale], shape=())
+        gt_grad_scaled = gt_pred.bce_loss_backward(gt_target, grad_output=gt_scale, reduction="mean")
+
+        t_pred_custom = torch.tensor(raw_pred, dtype=torch.float32).reshape(shape).requires_grad_(True)
+        t_loss_custom = torch.nn.functional.binary_cross_entropy(t_pred_custom, t_target, reduction="mean")
+        t_loss_custom.backward(torch.tensor(scale))
+
+        for act, exp in zip(gt_grad_scaled.data, t_pred_custom.grad.flatten().tolist()):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+    def test_random_float_bce_loss_backward_sum_and_none_validation(self, backend) -> None:
+        """Validates bce_loss_backward with 'sum' and 'none' reductions against PyTorch."""
+        random.seed(304)
+        shape = (3, 4)
+        num_elements = 12
+        raw_pred = [random.uniform(0.05, 0.95) for _ in range(num_elements)]
+        raw_target = [random.uniform(0.0, 1.0) for _ in range(num_elements)]
+        raw_grad_out = [random.uniform(0.5, 2.0) for _ in range(num_elements)]
+
+        gt_pred = backend.NDArray(data=raw_pred, shape=shape)
+        gt_target = backend.NDArray(data=raw_target, shape=shape)
+        scale = 0.75
+        gt_scale = backend.NDArray(data=[scale], shape=())
+        gt_grad_sum = gt_pred.bce_loss_backward(gt_target, grad_output=gt_scale, reduction="sum")
+
+        t_pred_sum = torch.tensor(raw_pred, dtype=torch.float32).reshape(shape).requires_grad_(True)
+        t_target = torch.tensor(raw_target, dtype=torch.float32).reshape(shape)
+        t_loss_sum = torch.nn.functional.binary_cross_entropy(t_pred_sum, t_target, reduction="sum")
+        t_loss_sum.backward(torch.tensor(scale))
+
+        assert gt_grad_sum.shape == shape
+        for act, exp in zip(gt_grad_sum.data, t_pred_sum.grad.flatten().tolist()):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+        gt_grad_out = backend.NDArray(data=raw_grad_out, shape=shape)
+        gt_grad_none = gt_pred.bce_loss_backward(gt_target, grad_output=gt_grad_out, reduction="none")
+
+        t_pred_none = torch.tensor(raw_pred, dtype=torch.float32).reshape(shape).requires_grad_(True)
+        t_grad_out = torch.tensor(raw_grad_out, dtype=torch.float32).reshape(shape)
+        t_loss_none = torch.nn.functional.binary_cross_entropy(t_pred_none, t_target, reduction="none")
+        t_loss_none.backward(t_grad_out)
+
+        assert gt_grad_none.shape == shape
+        for act, exp in zip(gt_grad_none.data, t_pred_none.grad.flatten().tolist()):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+    def test_random_float_bce_loss_transposed_strided_validation(self, backend) -> None:
+        """Validates BCELoss and backward on non-contiguous transposed views against PyTorch."""
+        random.seed(305)
+        shape = (3, 4)
+        raw_pred = [random.uniform(0.1, 0.9) for _ in range(12)]
+        raw_target = [random.choice([0.0, 1.0]) for _ in range(12)]
+
+        gt_pred = backend.NDArray(data=raw_pred, shape=shape).transpose()
+        gt_target = backend.NDArray(data=raw_target, shape=shape).transpose()
+        assert not gt_pred.is_contiguous()
+
+        t_pred = torch.tensor(raw_pred, dtype=torch.float32).reshape(shape).t().requires_grad_(True)
+        t_target = torch.tensor(raw_target, dtype=torch.float32).reshape(shape).t()
+
+        gt_loss = gt_pred.BCELoss(gt_target, reduction="mean")
+        t_loss = torch.nn.functional.binary_cross_entropy(t_pred, t_target, reduction="mean")
+        assert pytest.approx(gt_loss[()], rel=1e-5, abs=1e-6) == t_loss.item()
+
+        gt_grad = gt_pred.bce_loss_backward(gt_target, reduction="mean")
+        t_loss.backward()
+
+        assert gt_grad.shape == (4, 3)
+        for r in range(4):
+            for c in range(3):
+                assert pytest.approx(gt_grad[r, c], rel=1e-5, abs=1e-6) == t_pred.grad[r, c].item()
+
+
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from typing import Callable
 import pytest
 import torch
@@ -7,6 +8,7 @@ import torch
 from GoTorch.backend.native_backend import NDArray
 from GoTorch.nn.activations import LeakyReLU, ReLU, Sigmoid, Tanh
 from GoTorch.nn.layers import Linear
+from GoTorch.nn.loss import BCELoss, MSELoss
 from GoTorch.nn.module import Module, Sequential
 from GoTorch.nn.optimizer import Adam, Optimizer
 from GoTorch.tensor import Tensor
@@ -367,3 +369,138 @@ class TestOptimizerParity:
             assert list(gt_linear.bias.data.data) == pytest.approx(
                 pt_linear.bias.data.flatten().tolist(), abs=1e-5
             ), f"SGD bias mismatch at step {step_idx + 1}"
+
+
+class TestLossParity:
+    """Validates GoTorch.nn MSELoss and BCELoss forward and backward passes against torch.nn equivalents."""
+
+    @pytest.mark.parametrize("reduction", ["mean", "sum", "none"])
+    def test_mse_loss_forward_and_backward_parity(self, reduction: str) -> None:
+        """Verifies forward loss value and input gradient of MSELoss against torch.nn.MSELoss."""
+        random.seed(401)
+        shape = (3, 4)
+        num_elem = 12
+        raw_pred = [random.uniform(-3.0, 3.0) for _ in range(num_elem)]
+        raw_target = [random.uniform(-3.0, 3.0) for _ in range(num_elem)]
+
+        gt_x = Tensor(NDArray(raw_pred, shape=shape))
+        gt_y = Tensor(NDArray(raw_target, shape=shape))
+        gt_criterion = MSELoss(reduction=reduction)
+        gt_loss = gt_criterion(gt_x, gt_y)
+
+        pt_x = torch.tensor(raw_pred, dtype=torch.float32).reshape(shape).requires_grad_(True)
+        pt_y = torch.tensor(raw_target, dtype=torch.float32).reshape(shape)
+        pt_criterion = torch.nn.MSELoss(reduction=reduction)
+        pt_loss = pt_criterion(pt_x, pt_y)
+
+        # Forward parity
+        if reduction == "none":
+            assert gt_loss.shape == shape
+            assert list(gt_loss.data.data) == pytest.approx(pt_loss.flatten().tolist(), abs=1e-5)
+        else:
+            assert gt_loss.shape == ()
+            assert pytest.approx(gt_loss.data[()], rel=1e-5) == pt_loss.item()
+
+        # Backward parity
+        if reduction == "none":
+            raw_grad = [random.uniform(0.5, 2.0) for _ in range(num_elem)]
+            gt_out_grad = Tensor(NDArray(raw_grad, shape=shape))
+            pt_out_grad = torch.tensor(raw_grad, dtype=torch.float32).reshape(shape)
+            gt_loss.backward(out_grad=gt_out_grad)
+            pt_loss.backward(pt_out_grad)
+        else:
+            gt_loss.backward()
+            pt_loss.backward()
+
+        assert gt_x.grad is not None
+        assert list(gt_x.grad.data) == pytest.approx(pt_x.grad.flatten().tolist(), abs=1e-5)
+
+    @pytest.mark.parametrize("reduction", ["mean", "sum", "none"])
+    def test_bce_loss_forward_and_backward_parity(self, reduction: str) -> None:
+        """Verifies forward loss value and input gradient of BCELoss against torch.nn.BCELoss."""
+        random.seed(402)
+        shape = (2, 5)
+        num_elem = 10
+        raw_pred = [random.uniform(0.05, 0.95) for _ in range(num_elem)]
+        raw_target = [random.choice([0.0, 1.0]) for _ in range(num_elem)]
+
+        gt_x = Tensor(NDArray(raw_pred, shape=shape))
+        gt_y = Tensor(NDArray(raw_target, shape=shape))
+        gt_criterion = BCELoss(reduction=reduction)
+        gt_loss = gt_criterion(gt_x, gt_y)
+
+        pt_x = torch.tensor(raw_pred, dtype=torch.float32).reshape(shape).requires_grad_(True)
+        pt_y = torch.tensor(raw_target, dtype=torch.float32).reshape(shape)
+        pt_criterion = torch.nn.BCELoss(reduction=reduction)
+        pt_loss = pt_criterion(pt_x, pt_y)
+
+        # Forward parity
+        if reduction == "none":
+            assert gt_loss.shape == shape
+            assert list(gt_loss.data.data) == pytest.approx(pt_loss.flatten().tolist(), abs=1e-5)
+        else:
+            assert gt_loss.shape == ()
+            assert pytest.approx(gt_loss.data[()], rel=1e-5) == pt_loss.item()
+
+        # Backward parity
+        if reduction == "none":
+            raw_grad = [random.uniform(0.5, 2.0) for _ in range(num_elem)]
+            gt_out_grad = Tensor(NDArray(raw_grad, shape=shape))
+            pt_out_grad = torch.tensor(raw_grad, dtype=torch.float32).reshape(shape)
+            gt_loss.backward(out_grad=gt_out_grad)
+            pt_loss.backward(pt_out_grad)
+        else:
+            gt_loss.backward()
+            pt_loss.backward()
+
+        assert gt_x.grad is not None
+        assert list(gt_x.grad.data) == pytest.approx(pt_x.grad.flatten().tolist(), abs=1e-5)
+
+    def test_loss_linear_training_step_parity(self) -> None:
+        """Verifies end-to-end model parameter updates with MSELoss + Adam match PyTorch."""
+        gt_linear = Linear(input_dimension=3, output_dimension=1, bias=True)
+        gt_linear.linear = Tensor(NDArray([0.5, -0.2, 0.8], shape=(3, 1)))
+        gt_linear.bias = Tensor(NDArray([0.1], shape=(1,)))
+        gt_loss_fn = MSELoss(reduction="mean")
+        gt_opt = Adam(gt_linear, lr=0.05, b1=0.9, b2=0.999)
+
+        pt_linear = torch.nn.Linear(in_features=3, out_features=1, bias=True)
+        sync_linear_weights(gt_linear, pt_linear)
+        pt_loss_fn = torch.nn.MSELoss(reduction="mean")
+        pt_opt = torch.optim.Adam(pt_linear.parameters(), lr=0.05, betas=(0.9, 0.999), eps=1e-8)
+
+        batches = [
+            ([1.0, 0.5, -0.5, 0.0, 1.0, -1.0], [1.5, -0.5]),
+            ([-0.5, 1.2, 0.3, 0.8, -0.4, 0.6], [0.2, 1.1]),
+        ]
+
+        for step_idx, (x_raw, y_raw) in enumerate(batches):
+            gt_opt.zero_grad()
+            pt_opt.zero_grad()
+
+            gt_x = Tensor(NDArray(x_raw, shape=(2, 3)))
+            gt_y = Tensor(NDArray(y_raw, shape=(2, 1)))
+            pt_x = torch.tensor(x_raw, dtype=torch.float32).reshape(2, 3)
+            pt_y = torch.tensor(y_raw, dtype=torch.float32).reshape(2, 1)
+
+            gt_pred = gt_linear(gt_x)
+            pt_pred = pt_linear(pt_x)
+
+            gt_loss = gt_loss_fn(gt_pred, gt_y)
+            pt_loss = pt_loss_fn(pt_pred, pt_y)
+
+            assert pytest.approx(gt_loss.data[()], rel=1e-5) == pt_loss.item()
+
+            gt_loss.backward()
+            pt_loss.backward()
+
+            gt_opt.step()
+            pt_opt.step()
+
+            assert list(gt_linear.linear.data.data) == pytest.approx(
+                pt_linear.weight.data.t().flatten().tolist(), abs=1e-5
+            ), f"Weight mismatch after step {step_idx + 1}"
+            assert list(gt_linear.bias.data.data) == pytest.approx(
+                pt_linear.bias.data.flatten().tolist(), abs=1e-5
+            ), f"Bias mismatch after step {step_idx + 1}"
+

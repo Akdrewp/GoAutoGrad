@@ -30,9 +30,6 @@ ndarray<T> for_each_unary(const ndarray<T>& in, UnaryOp op) {
     if (in.isEmpty()) {
         return ndarray<T>(std::vector<T>{}, in.shape);
     }
-    if (!in.storage) {
-        throw std::runtime_error("NDArray storage is unallocated");
-    }
 
     size_t total_elements = in.size();
     std::vector<T> out_vec(total_elements);
@@ -68,9 +65,6 @@ template <typename T, typename BinaryOp>
 ndarray<T> for_each_binary(const ndarray<T>& a, const ndarray<T>& b, BinaryOp op) {
     if (a.isEmpty() || b.isEmpty()) {
         return ndarray<T>();
-    }
-    if (!a.storage || !b.storage) {
-        throw std::runtime_error("NDArray storage is unallocated");
     }
 
     size_t ndim_a = a.shape.size();
@@ -184,7 +178,7 @@ ndarray<T> reduce_along_axis(
     std::vector<T> out_data(out_num_el, init_val);
     std::vector<size_t> out_strides = shape_utils::default_strides(out_shape);
 
-    if (in.size() == 0 || !in.storage) {
+    if (in.isEmpty()) {
         return ndarray<T>(out_data, out_shape);
     }
 
@@ -213,7 +207,7 @@ ndarray<T> reduce_along_axis(
  */
 template <typename T, typename ReduceOp>
 T reduce_all(const ndarray<T>& in, ReduceOp op, T init_val) {
-    if (in.size() == 0 || !in.storage) {
+    if (in.isEmpty()) {
         return init_val;
     }
 

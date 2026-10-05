@@ -154,3 +154,87 @@ class LeakyReLU(Operation):
         alpha = getattr(node, "alpha", 0.01)
         return (tensor_cls(a.data.leaky_relu_backward(out_grad.data, alpha=alpha)),)
 
+
+class MSELoss(Operation):
+    """Mean squared error loss operation."""
+
+    @classmethod
+    def compute(
+        cls, prediction: NDArray, target: NDArray, reduction: str = "mean"
+    ) -> NDArray:
+        """Computes mean squared error loss forward pass on raw NDArrays.
+
+        Args:
+            prediction: Predicted values array.
+            target: Ground truth target array.
+            reduction: Reduction mode ('mean', 'sum', 'none'). Defaults to 'mean'.
+
+        Returns:
+            Computed loss NDArray.
+        """
+        return prediction.mse_loss(target, reduction=reduction)
+
+    @classmethod
+    def gradient(cls, out_grad: "Tensor", node: "Tensor") -> tuple["Tensor", ...]:
+        """Returns the gradient Tensor for each input parent.
+
+        Args:
+            out_grad: Incoming gradient Tensor from downstream node.
+            node: Current loss Tensor node in the computational DAG.
+
+        Returns:
+            Tuple of gradient Tensors for parent inputs.
+        """
+        tensor_cls = node.__class__
+        prediction, target = node.inputs
+        reduction = getattr(node, "reduction", "mean")
+        grad_pred = prediction.data.mse_loss_backward(
+            target.data, out_grad.data, reduction=reduction
+        )
+        grad_target = target.data.mse_loss_backward(
+            prediction.data, out_grad.data, reduction=reduction
+        )
+        return (tensor_cls(grad_pred), tensor_cls(grad_target))
+
+
+class BCELoss(Operation):
+    """Binary cross entropy loss operation."""
+
+    @classmethod
+    def compute(
+        cls, in_features: NDArray, true_features: NDArray, reduction: str = "mean"
+    ) -> NDArray:
+        """Computes binary cross entropy loss forward pass on raw NDArrays.
+
+        Args:
+            in_features: Predicted probabilities array.
+            true_features: Ground truth binary targets array.
+            reduction: Reduction mode ('mean', 'sum', 'none'). Defaults to 'mean'.
+
+        Returns:
+            Computed loss NDArray.
+        """
+        return in_features.BCELoss(true_features, reduction=reduction)
+
+    @classmethod
+    def gradient(cls, out_grad: "Tensor", node: "Tensor") -> tuple["Tensor", ...]:
+        """Returns the gradient Tensor for each input parent.
+
+        Args:
+            out_grad: Incoming gradient Tensor from downstream node.
+            node: Current loss Tensor node in the computational DAG.
+
+        Returns:
+            Tuple of gradient Tensors for parent inputs.
+        """
+        tensor_cls = node.__class__
+        in_features, true_features = node.inputs
+        reduction = getattr(node, "reduction", "mean")
+        grad_in = in_features.data.bce_loss_backward(
+            true_features.data, out_grad.data, reduction=reduction
+        )
+        zeros = tensor_cls(true_features.data.zeros_like())
+        return (tensor_cls(grad_in), zeros)
+
+
+
