@@ -11,7 +11,7 @@ Your job is strictly to implement the concrete Python/C++ code fulfilling those 
    - Follow Google's style guide for comments and docstrings.
    - For trivial implementations, use a concise `/** @brief ... */`.
    - For longer, sophisticated, or algorithmic implementations, document parameters, return values, and exceptions clearly (`@param`, `@return`, `@throws`).
-   - Do not artificially split functions into excessive numbered pseudo-steps.
+   - Do not artificially split functions into excessive numbered pseudo-steps. All functions that have self-obvious bodies but maybe one thing that needs explanation do NOT get a numbered algorithm list. Numbered step lists are reserved strictly for genuine multi-step algorithmic workflows.
    - Keep functions small and focused: decompose complex or repetitive logic into small, descriptive helper functions.
    - For inline comments, only create comments where the rationale or non-obvious invariant is needed; do not add redundant comments for self-explanatory lines.
    - Follow the algorithmic specifications outlined in docstrings or comments.
@@ -37,7 +37,7 @@ All C++ and Python functions must include Google-style docstrings:
 1. **C++ (`.hpp`, `.cpp`)**:
    - Use `/** ... */` blocks.
    - Must contain: `@brief`, `@param` (for each argument), `@return`, and `@throw` (if exceptions are raised).
-   - **Example**:
+   - **Example 1 (Algorithmic / Multi-step workflow)**:
      ```cpp
      /**
       * @brief Multiplies two tensors along their inner dimensions.
@@ -57,6 +57,30 @@ All C++ and Python functions must include Google-style docstrings:
        }
        // 2. Perform matrix multiplication kernel
        // ...
+     }
+     ```
+   - **Example 2 (Self-obvious body with single explanation - no numbered list)**:
+     ```cpp
+     /**
+      * @brief Validates grad_output shape compatibility.
+      *
+      * Scalar or empty gradients are universally compatible. Non-scalar gradients
+      * must match the unreduced input tensor shape.
+      *
+      * @param input Input tensor.
+      * @param grad_output Upstream gradient tensor.
+      * @throw std::invalid_argument If grad_output shape is incompatible.
+      */
+     static void validate_grad_output(const ndarray<T>& input, const ndarray<T>& grad_output) {
+       // Scalar or empty gradients are universally compatible
+       if (grad_output.isEmpty() || grad_output.size() == 1) {
+         return;
+       }
+       if (grad_output.shape != input.shape) {
+         throw std::invalid_argument(
+             "grad_output shape must match prediction shape for unreduced loss."
+         );
+       }
      }
      ```
 2. **Python / Stubs (`.py`, `.pyi`)**:

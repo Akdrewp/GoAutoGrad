@@ -405,6 +405,103 @@ class TestNDArrayPyTorchValidation:
             for c in range(3):
                 assert pytest.approx(gt_grad[r, c], rel=1e-5, abs=1e-6) == t_pred.grad[r, c].item()
 
+    def test_random_float_bce_with_logits_loss_forward_validation(self, backend) -> None:
+        """Validates BCEWithLogitsLoss forward against PyTorch across all reductions."""
+        random.seed(501)
+        shape = (3, 4)
+        num_elements = 12
+        raw_logits = [random.uniform(-4.0, 4.0) for _ in range(num_elements)]
+        raw_targets = [random.choice([0.0, 1.0]) for _ in range(num_elements)]
+
+        gt_logits = backend.NDArray(data=raw_logits, shape=shape)
+        gt_targets = backend.NDArray(data=raw_targets, shape=shape)
+
+        t_logits = torch.tensor(raw_logits, dtype=torch.float32).reshape(shape)
+        t_targets = torch.tensor(raw_targets, dtype=torch.float32).reshape(shape)
+
+        for reduction in ["mean", "sum", "none"]:
+            gt_loss = gt_logits.BCEWithLogitsLoss(gt_targets, reduction=reduction)
+            t_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                t_logits, t_targets, reduction=reduction
+            )
+            if reduction in ("mean", "sum"):
+                assert gt_loss.shape == ()
+                assert pytest.approx(gt_loss[()], rel=1e-5, abs=1e-6) == t_loss.item()
+            else:
+                assert gt_loss.shape == shape
+                for actual, expected in zip(gt_loss.data, t_loss.flatten().tolist()):
+                    assert pytest.approx(actual, rel=1e-5, abs=1e-6) == expected
+
+    def test_random_float_bce_with_logits_loss_backward_validation(self, backend) -> None:
+        """Validates bce_with_logits_loss_backward against PyTorch autograd gradients."""
+        random.seed(602)
+        shape = (2, 5)
+        num_elements = 10
+        raw_logits = [random.uniform(-5.0, 5.0) for _ in range(num_elements)]
+        raw_targets = [random.choice([0.0, 1.0]) for _ in range(num_elements)]
+        raw_grad_out = [random.uniform(0.5, 2.0) for _ in range(num_elements)]
+
+        gt_logits = backend.NDArray(data=raw_logits, shape=shape)
+        gt_targets = backend.NDArray(data=raw_targets, shape=shape)
+
+        # 1. Mean reduction (default grad)
+        gt_grad_mean = gt_logits.bce_with_logits_loss_backward(gt_targets, reduction="mean")
+        t_logits_mean = torch.tensor(raw_logits, dtype=torch.float32).reshape(shape).requires_grad_(True)
+        t_targets_mean = torch.tensor(raw_targets, dtype=torch.float32).reshape(shape)
+        t_loss_mean = torch.nn.functional.binary_cross_entropy_with_logits(t_logits_mean, t_targets_mean, reduction="mean")
+        t_loss_mean.backward()
+        for act, exp in zip(gt_grad_mean.data, t_logits_mean.grad.flatten().tolist()):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+        # 2. Sum reduction with scalar gradient
+        scale = 1.5
+        gt_grad_scale = backend.NDArray(data=[scale], shape=())
+        gt_grad_sum = gt_logits.bce_with_logits_loss_backward(gt_targets, grad_output=gt_grad_scale, reduction="sum")
+        t_logits_sum = torch.tensor(raw_logits, dtype=torch.float32).reshape(shape).requires_grad_(True)
+        t_loss_sum = torch.nn.functional.binary_cross_entropy_with_logits(t_logits_sum, t_targets_mean, reduction="sum")
+        t_loss_sum.backward(torch.tensor(scale))
+        for act, exp in zip(gt_grad_sum.data, t_logits_sum.grad.flatten().tolist()):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+        # 3. None reduction with tensor gradient
+        gt_grad_out = backend.NDArray(data=raw_grad_out, shape=shape)
+        gt_grad_none = gt_logits.bce_with_logits_loss_backward(gt_targets, grad_output=gt_grad_out, reduction="none")
+        t_logits_none = torch.tensor(raw_logits, dtype=torch.float32).reshape(shape).requires_grad_(True)
+        t_grad_out = torch.tensor(raw_grad_out, dtype=torch.float32).reshape(shape)
+        t_loss_none = torch.nn.functional.binary_cross_entropy_with_logits(t_logits_none, t_targets_mean, reduction="none")
+        t_loss_none.backward(t_grad_out)
+        for act, exp in zip(gt_grad_none.data, t_logits_none.grad.flatten().tolist()):
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+    def test_random_float_bce_with_logits_loss_numerical_stability(self, backend) -> None:
+        """Verifies numerical stability for extreme logit values without overflow/underflow or NaN."""
+        extreme_logits = [-100.0, -50.0, -20.0, 0.0, 20.0, 50.0, 100.0]
+        targets = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0]
+        shape = (len(extreme_logits),)
+
+        gt_logits = backend.NDArray(data=extreme_logits, shape=shape)
+        gt_targets = backend.NDArray(data=targets, shape=shape)
+
+        t_logits = torch.tensor(extreme_logits, dtype=torch.float32).reshape(shape).requires_grad_(True)
+        t_targets = torch.tensor(targets, dtype=torch.float32).reshape(shape)
+
+        # Forward
+        gt_loss = gt_logits.BCEWithLogitsLoss(gt_targets, reduction="none")
+        t_loss = torch.nn.functional.binary_cross_entropy_with_logits(t_logits, t_targets, reduction="none")
+        for act, exp in zip(gt_loss.data, t_loss.tolist()):
+            assert not torch.isnan(torch.tensor(act)).item()
+            assert not torch.isinf(torch.tensor(act)).item()
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+        # Backward
+        t_loss.backward(torch.ones_like(t_loss))
+        gt_grad = gt_logits.bce_with_logits_loss_backward(gt_targets, reduction="none")
+        for act, exp in zip(gt_grad.data, t_logits.grad.tolist()):
+            assert not torch.isnan(torch.tensor(act)).item()
+            assert not torch.isinf(torch.tensor(act)).item()
+            assert pytest.approx(act, rel=1e-5, abs=1e-6) == exp
+
+
 
 
 

@@ -88,14 +88,14 @@ ndarray<T> apply_reduction(const ndarray<T>& loss, Reduction reduction) {
  *
  * Evaluates element-wise squared differences (p - t)^2 and reduces according to reduction mode.
  *
- * 1. Compute element-wise squared difference (p - t)^2 via binary kernel.
- * 2. Apply requested reduction to squared differences.
+ * 1. Validate matching operand shapes and compute squared differences.
+ * 2. Reduce squared error elements according to configured reduction mode.
  *
  * @param prediction Input predicted values.
- * @param target Ground truth target values with broadcast-compatible shape.
+ * @param target Ground truth target values with identical shape.
  * @param reduction Reduction mode (Mean, Sum, None).
  * @return Computed loss ndarray (scalar for Mean/Sum, matching shape for None).
- * @throw std::invalid_argument If shapes cannot be broadcast together.
+ * @throw std::invalid_argument If shapes do not match.
  */
 template <typename T>
 ndarray<T> mse_loss(
@@ -103,15 +103,13 @@ ndarray<T> mse_loss(
     const ndarray<T>& target,
     Reduction reduction
 ) {
-    // Step 1: Compute element-wise squared difference (p - t)^2
-    ndarray<T> sq_diff = kernels::for_each_binary(
+    // 1. Evaluate element-wise squared difference and reduction via Loss base
+    return Loss<T>(reduction).evaluate_forward(
         prediction, target, [](T p, T t) {
             T diff = p - t;
             return diff * diff;
         }
     );
-    // Step 2: Apply requested reduction
-    return apply_reduction(sq_diff, reduction);
 }
 
 /**
@@ -121,7 +119,7 @@ ndarray<T> mse_loss(
  * @param target Ground truth target values.
  * @param reduction String reduction mode ("mean", "sum", "none").
  * @return Computed loss ndarray.
- * @throw std::invalid_argument If reduction string is unrecognized or shapes cannot broadcast.
+ * @throw std::invalid_argument If reduction string is unrecognized or shapes do not match.
  */
 template <typename T>
 ndarray<T> mse_loss(
@@ -139,14 +137,16 @@ ndarray<T> mse_loss(
  * - None: 2 * (p - t) * grad_output
  * - Sum:  2 * (p - t) * grad_output
  * - Mean: (2 / N) * (p - t) * grad_output
- * and automatically unbroadcasts to match prediction operand shape.
+ *
+ * 1. Validate operand and gradient shapes.
+ * 2. Evaluate analytical gradient scaled by reduction factor.
  *
  * @param prediction Input predicted values.
  * @param target Ground truth target values.
  * @param grad_output Gradient of loss with respect to output.
  * @param reduction Reduction mode applied in forward pass.
  * @return Gradient ndarray with respect to prediction matching prediction.shape.
- * @throw std::invalid_argument If shapes cannot broadcast together.
+ * @throw std::invalid_argument If shapes do not match or grad_output shape mismatches.
  */
 template <typename T>
 ndarray<T> mse_loss_backward(
@@ -155,43 +155,12 @@ ndarray<T> mse_loss_backward(
     const ndarray<T>& grad_output,
     Reduction reduction
 ) {
-    // Determine broadcasted total elements N for mean scaling
-    size_t ndim_p = prediction.shape.size();
-    size_t ndim_t = target.shape.size();
-    size_t max_ndim = std::max(ndim_p, ndim_t);
-    std::vector<size_t> padded_p = shape_utils::pad_shape(prediction.shape, max_ndim);
-    std::vector<size_t> padded_t = shape_utils::pad_shape(target.shape, max_ndim);
-    std::vector<size_t> out_shape = shape_utils::broadcast_shapes(padded_p, padded_t);
-    size_t total_elements = shape_utils::num_elements(out_shape);
-
-    T scale = static_cast<T>(2);
-    if (reduction == Reduction::Mean) {
-        scale = total_elements > 0 ? (static_cast<T>(2) / static_cast<T>(total_elements)) : static_cast<T>(0);
-    }
-
-    bool grad_is_scalar = grad_output.isEmpty() || grad_output.size() == 1;
-    if (grad_is_scalar) {
-        T scalar_grad = !grad_output.isEmpty() ? grad_output[0] : static_cast<T>(1);
-        T total_scale = scale * scalar_grad;
-        ndarray<T> full_grad = kernels::for_each_binary(
-            prediction, target, [total_scale](T p, T t) {
-                return total_scale * (p - t);
-            }
-        );
-        return shape_utils::unbroadcast(full_grad, prediction.shape);
-    }
-
-    ndarray<T> diff = kernels::for_each_binary(
-        prediction, target, [scale](T p, T t) {
-            return scale * (p - t);
-        }
+    // 1. Evaluate analytical gradient via Loss base with scaling factor 2
+    return Loss<T>(reduction).evaluate_backward(
+        prediction, target, grad_output, [](T p, T t) {
+            return p - t;
+        }, static_cast<T>(2)
     );
-    ndarray<T> full_grad = kernels::for_each_binary(
-        diff, grad_output, [](T d, T g) {
-            return d * g;
-        }
-    );
-    return shape_utils::unbroadcast(full_grad, prediction.shape);
 }
 
 /**
@@ -214,36 +183,17 @@ ndarray<T> mse_loss_backward(
     return mse_loss_backward(prediction, target, grad_output, parse_reduction(reduction));
 }
 
-
 /**
  * @brief Computes Binary Cross Entropy (BCE) loss between prediction and target.
  *
- * The loss for one output is:
- * There is some binary class y = {0, 1}
- * and some prediction p = P(y = 1) so P(y = 0) = 1 - p.
- *
- * Then an objective function that measures a models prediction = y_p
- * y_p^y * (1 - y_p)^(1-y).
- * Which just measures binomial approximation for the prediction.
- * 
- * A loss function can be made by taking the log
- * ln(l) = y * ln(y_p) + (1-y) * ln(1-y_p)
- * l = - ( y * ln(y_p) + (1-y) * ln(1-y_p) )
- * Here, where y != 0, the prediction y_p should close to 0
- * Else y == 1: ln(y_p), where y_p < 0, should be close to 1
- *
- * The loss over the batch is 
- * sum for y in batch: 
- *  l = - ( y * ln(y_p) + (1-y) * ln(1-y_p) )
- *
- * 1. Compute element-wise loss via standard equation: -(y * ln(p) + (1 - y) * ln(1 - p)).
+ * 1. Validate matching operand shapes and compute element-wise binary cross entropy.
  * 2. Apply requested reduction to element-wise losses.
  *
  * @param in_features Input predicted probabilities.
  * @param true_features Ground truth binary targets (0 or 1).
  * @param reduction Reduction mode (Mean, Sum, None).
  * @return Computed loss ndarray (scalar for Mean/Sum, matching shape for None).
- * @throw std::invalid_argument If shapes cannot broadcast together.
+ * @throw std::invalid_argument If shapes do not match.
  */
 template <typename T>
 ndarray<T> BCELoss(
@@ -251,14 +201,12 @@ ndarray<T> BCELoss(
     const ndarray<T>& true_features,
     Reduction reduction
 ) {
-    // Step 1: Compute element-wise loss via standard equation
-    ndarray<T> loss_elements = kernels::for_each_binary(
+    // 1. Evaluate binary cross entropy and reduce via Loss base
+    return Loss<T>(reduction).evaluate_forward(
         in_features, true_features, [](T p, T y) {
             return -((y * std::log(p)) + ((static_cast<T>(1) - y) * std::log(static_cast<T>(1) - p)));
         }
     );
-    // Step 2: Apply requested reduction
-    return apply_reduction(loss_elements, reduction);
 }
 
 /**
@@ -282,16 +230,15 @@ ndarray<T> BCELoss(
 /**
  * @brief Computes backward gradient of BCE loss with respect to in_features.
  *
- * 1. Compute broadcast shape and reduction scale factor.
+ * 1. Validate operand and gradient shapes.
  * 2. Evaluate analytical gradient: (p - y) / (p * (1 - p)) * scale * grad_output.
- * 3. Unbroadcast gradient back to in_features operand shape.
  *
  * @param in_features Input predicted probabilities.
  * @param true_features Ground truth binary targets.
  * @param grad_output Upstream gradient of loss with respect to output.
  * @param reduction Reduction mode applied in forward pass.
  * @return Gradient ndarray with respect to in_features matching in_features.shape.
- * @throw std::invalid_argument If shapes cannot broadcast together.
+ * @throw std::invalid_argument If shapes do not match or grad_output shape mismatches.
  */
 template <typename T>
 ndarray<T> bce_loss_backward(
@@ -300,49 +247,14 @@ ndarray<T> bce_loss_backward(
     const ndarray<T>& grad_output,
     Reduction reduction
 ) {
-    // Step 1: Compute broadcast shape and reduction scale factor
-    size_t ndim_p = in_features.shape.size();
-    size_t ndim_t = true_features.shape.size();
-    size_t max_ndim = std::max(ndim_p, ndim_t);
-    std::vector<size_t> padded_p = shape_utils::pad_shape(in_features.shape, max_ndim);
-    std::vector<size_t> padded_t = shape_utils::pad_shape(true_features.shape, max_ndim);
-    std::vector<size_t> out_shape = shape_utils::broadcast_shapes(padded_p, padded_t);
-    size_t total_elements = shape_utils::num_elements(out_shape);
-
-    T scale = static_cast<T>(1);
-    if (reduction == Reduction::Mean) {
-        scale = total_elements > 0 ? (static_cast<T>(1) / static_cast<T>(total_elements)) : static_cast<T>(0);
-    }
-
-    // Step 2: Evaluate analytical gradient
-    bool grad_is_scalar = grad_output.isEmpty() || grad_output.size() == 1;
+    // 1. Evaluate analytical gradient via Loss base with epsilon safeguard
     constexpr T eps = static_cast<T>(1e-12);
-    if (grad_is_scalar) {
-        T scalar_grad = !grad_output.isEmpty() ? grad_output[0] : static_cast<T>(1);
-        T total_scale = scale * scalar_grad;
-        ndarray<T> full_grad = kernels::for_each_binary(
-            in_features, true_features, [total_scale, eps](T p, T y) {
-                T denom = std::max(p * (static_cast<T>(1) - p), eps);
-                return total_scale * (p - y) / denom;
-            }
-        );
-        // Step 3: Unbroadcast gradient back to in_features operand shape
-        return shape_utils::unbroadcast(full_grad, in_features.shape);
-    }
-
-    ndarray<T> diff = kernels::for_each_binary(
-        in_features, true_features, [scale, eps](T p, T y) {
+    return Loss<T>(reduction).evaluate_backward(
+        in_features, true_features, grad_output, [eps](T p, T y) {
             T denom = std::max(p * (static_cast<T>(1) - p), eps);
-            return scale * (p - y) / denom;
+            return (p - y) / denom;
         }
     );
-    ndarray<T> full_grad = kernels::for_each_binary(
-        diff, grad_output, [](T d, T g) {
-            return d * g;
-        }
-    );
-    // Step 3: Unbroadcast gradient back to in_features operand shape
-    return shape_utils::unbroadcast(full_grad, in_features.shape);
 }
 
 /**
@@ -365,7 +277,114 @@ ndarray<T> bce_loss_backward(
     return bce_loss_backward(in_features, true_features, grad_output, parse_reduction(reduction));
 }
 
+/**
+ * @brief Computes Binary Cross Entropy with Logits (BCEWithLogits) loss between logits and target.
+ *
+ * Combines a sigmoid activation and binary cross entropy into a single
+ * numerically stable operation using the log-sum-exp formulation.
+ *
+ * 1. Validate matching operand shapes and compute element-wise numerically stable loss.
+ * 2. Apply requested reduction to loss elements.
+ *
+ * @param in_features Input logits.
+ * @param true_features Ground truth binary targets (0 or 1).
+ * @param reduction Reduction mode (Mean, Sum, None).
+ * @return Computed loss ndarray (scalar for Mean/Sum, matching shape for None).
+ * @throw std::invalid_argument If shapes do not match.
+ */
+template <typename T>
+ndarray<T> BCEWithLogitsLoss(
+    const ndarray<T>& in_features,
+    const ndarray<T>& true_features,
+    Reduction reduction
+) {
+    // 1. Evaluate numerically stable logits cross entropy and reduce via Loss base
+    return Loss<T>(reduction).evaluate_forward(
+        in_features, true_features, [](T x, T y) {
+            T max_val = std::max(x, static_cast<T>(0));
+            T abs_x = std::abs(x);
+            return max_val - (x * y) + std::log1p(std::exp(-abs_x));
+        }
+    );
+}
+
+/**
+ * @brief Computes BCEWithLogits loss accepting string reduction mode.
+ *
+ * @param in_features Input logits.
+ * @param true_features Ground truth binary targets.
+ * @param reduction String reduction mode ("mean", "sum", "none").
+ * @return Computed loss ndarray.
+ * @throw std::invalid_argument If reduction string is unrecognized or shapes cannot broadcast.
+ */
+template <typename T>
+ndarray<T> BCEWithLogitsLoss(
+    const ndarray<T>& in_features,
+    const ndarray<T>& true_features,
+    const std::string& reduction
+) {
+    return BCEWithLogitsLoss(in_features, true_features, parse_reduction(reduction));
+}
+
+/**
+ * @brief Computes backward gradient of BCEWithLogits loss with respect to in_features.
+ *
+ * Evaluates the analytical gradient: (sigmoid(x) - y) * scale * grad_output.
+ *
+ * 1. Validate operand and gradient shapes.
+ * 2. Evaluate analytical gradient elements using numerically stable sigmoid.
+ *
+ * @param in_features Input logits.
+ * @param true_features Ground truth binary targets.
+ * @param grad_output Upstream gradient of loss with respect to output.
+ * @param reduction Reduction mode applied in forward pass.
+ * @return Gradient ndarray with respect to in_features matching in_features.shape.
+ * @throw std::invalid_argument If shapes do not match or grad_output shape mismatches.
+ */
+template <typename T>
+ndarray<T> bce_with_logits_loss_backward(
+    const ndarray<T>& in_features,
+    const ndarray<T>& true_features,
+    const ndarray<T>& grad_output,
+    Reduction reduction
+) {
+    // 1. Evaluate analytical gradient via Loss base using numerically stable sigmoid
+    auto sigmoid_fn = [](T x) -> T {
+        if (x >= static_cast<T>(0)) {
+            return static_cast<T>(1) / (static_cast<T>(1) + std::exp(-x));
+        }
+        T exp_x = std::exp(x);
+        return exp_x / (static_cast<T>(1) + exp_x);
+    };
+    return Loss<T>(reduction).evaluate_backward(
+        in_features, true_features, grad_output, [sigmoid_fn](T x, T y) {
+            return sigmoid_fn(x) - y;
+        }
+    );
+}
+
+/**
+ * @brief Computes backward gradient of BCEWithLogits loss accepting string reduction mode.
+ *
+ * @param in_features Input logits.
+ * @param true_features Ground truth binary targets.
+ * @param grad_output Upstream gradient of loss with respect to output.
+ * @param reduction String reduction mode ("mean", "sum", "none").
+ * @return Gradient ndarray with respect to in_features.
+ * @throw std::invalid_argument If reduction is unrecognized or shapes cannot broadcast.
+ */
+template <typename T>
+ndarray<T> bce_with_logits_loss_backward(
+    const ndarray<T>& in_features,
+    const ndarray<T>& true_features,
+    const ndarray<T>& grad_output,
+    const std::string& reduction
+) {
+    return bce_with_logits_loss_backward(in_features, true_features, grad_output, parse_reduction(reduction));
+}
+
 // Explicit template instantiations
+template class Loss<float>;
 template ndarray<float> apply_reduction<float>(const ndarray<float>&, Reduction);
 template ndarray<float> mse_loss<float>(const ndarray<float>&, const ndarray<float>&, Reduction);
 template ndarray<float> mse_loss<float>(const ndarray<float>&, const ndarray<float>&, const std::string&);
@@ -373,6 +392,7 @@ template ndarray<float> mse_loss_backward<float>(const ndarray<float>&, const nd
 template ndarray<float> mse_loss_backward<float>(const ndarray<float>&, const ndarray<float>&, const ndarray<float>&, const std::string&);
 template class MSELoss<float>;
 
+template class Loss<double>;
 template ndarray<double> apply_reduction<double>(const ndarray<double>&, Reduction);
 
 template ndarray<double> mse_loss<double>(const ndarray<double>&, const ndarray<double>&, Reduction);
@@ -390,6 +410,16 @@ template ndarray<double> BCELoss<double>(const ndarray<double>&, const ndarray<d
 template ndarray<double> BCELoss<double>(const ndarray<double>&, const ndarray<double>&, const std::string&);
 template ndarray<double> bce_loss_backward<double>(const ndarray<double>&, const ndarray<double>&, const ndarray<double>&, Reduction);
 template ndarray<double> bce_loss_backward<double>(const ndarray<double>&, const ndarray<double>&, const ndarray<double>&, const std::string&);
+
+template ndarray<float> BCEWithLogitsLoss<float>(const ndarray<float>&, const ndarray<float>&, Reduction);
+template ndarray<float> BCEWithLogitsLoss<float>(const ndarray<float>&, const ndarray<float>&, const std::string&);
+template ndarray<float> bce_with_logits_loss_backward<float>(const ndarray<float>&, const ndarray<float>&, const ndarray<float>&, Reduction);
+template ndarray<float> bce_with_logits_loss_backward<float>(const ndarray<float>&, const ndarray<float>&, const ndarray<float>&, const std::string&);
+
+template ndarray<double> BCEWithLogitsLoss<double>(const ndarray<double>&, const ndarray<double>&, Reduction);
+template ndarray<double> BCEWithLogitsLoss<double>(const ndarray<double>&, const ndarray<double>&, const std::string&);
+template ndarray<double> bce_with_logits_loss_backward<double>(const ndarray<double>&, const ndarray<double>&, const ndarray<double>&, Reduction);
+template ndarray<double> bce_with_logits_loss_backward<double>(const ndarray<double>&, const ndarray<double>&, const ndarray<double>&, const std::string&);
 
 }  // namespace nn
 }  // namespace gotorch

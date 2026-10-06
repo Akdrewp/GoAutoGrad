@@ -92,6 +92,15 @@ PYBIND11_MODULE(native_backend, m) {
         .def("bce_loss_backward", [](const NDArray& self, const NDArray& target, const NDArray& grad_output, const std::string& reduction) {
             return gotorch::nn::bce_loss_backward(self, target, grad_output, reduction);
         }, py::arg("target"), py::arg("grad_output") = NDArray(), py::arg("reduction") = "mean")
+        .def("BCEWithLogitsLoss", [](const NDArray& self, const NDArray& target, const std::string& reduction) {
+            return gotorch::nn::BCEWithLogitsLoss(self, target, reduction);
+        }, py::arg("target"), py::arg("reduction") = "mean")
+        .def("BCEwithLogitsLoss", [](const NDArray& self, const NDArray& target, const std::string& reduction) {
+            return gotorch::nn::BCEWithLogitsLoss(self, target, reduction);
+        }, py::arg("target"), py::arg("reduction") = "mean")
+        .def("bce_with_logits_loss_backward", [](const NDArray& self, const NDArray& target, const NDArray& grad_output, const std::string& reduction) {
+            return gotorch::nn::bce_with_logits_loss_backward(self, target, grad_output, reduction);
+        }, py::arg("target"), py::arg("grad_output") = NDArray(), py::arg("reduction") = "mean")
         .def("sum", [](const NDArray& self, py::object dim, bool keepdim) -> NDArray {
             if (dim.is_none()) {
                 return self.sum();
@@ -157,5 +166,17 @@ PYBIND11_MODULE(native_backend, m) {
 
     m.def("bce_loss_backward", [](const NDArray& in_features, const NDArray& true_features, const NDArray& grad_output, const std::string& reduction) {
         return gotorch::nn::bce_loss_backward(in_features, true_features, grad_output, reduction);
+    }, py::arg("in_features"), py::arg("true_features"), py::arg("grad_output") = NDArray(), py::arg("reduction") = "mean");
+
+    m.def("BCEWithLogitsLoss", [](const NDArray& in_features, const NDArray& true_features, const std::string& reduction) {
+        return gotorch::nn::BCEWithLogitsLoss(in_features, true_features, reduction);
+    }, py::arg("in_features"), py::arg("true_features"), py::arg("reduction") = "mean");
+
+    m.def("BCEwithLogitsLoss", [](const NDArray& in_features, const NDArray& true_features, const std::string& reduction) {
+        return gotorch::nn::BCEWithLogitsLoss(in_features, true_features, reduction);
+    }, py::arg("in_features"), py::arg("true_features"), py::arg("reduction") = "mean");
+
+    m.def("bce_with_logits_loss_backward", [](const NDArray& in_features, const NDArray& true_features, const NDArray& grad_output, const std::string& reduction) {
+        return gotorch::nn::bce_with_logits_loss_backward(in_features, true_features, grad_output, reduction);
     }, py::arg("in_features"), py::arg("true_features"), py::arg("grad_output") = NDArray(), py::arg("reduction") = "mean");
 }

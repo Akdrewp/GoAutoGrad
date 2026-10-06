@@ -996,18 +996,6 @@ TEST_F(ndarray_mse_loss, ShouldComputeNoneReduction) {
     EXPECT_FLOAT_EQ(loss[3], 4.0f);
 }
 
-TEST_F(ndarray_mse_loss, ShouldHandleBroadcastingBetweenShapes) {
-    NDArray pred({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2});
-    NDArray target({1.0f, 2.0f}, {1, 2});
-
-    NDArray loss = gotorch::nn::mse_loss(pred, target, "mean");
-    // row 0: (1-1)^2 + (2-2)^2 = 0
-    // row 1: (3-1)^2 + (4-2)^2 = 4 + 4 = 8
-    // mean: 8 / 4 = 2.0
-    EXPECT_EQ(loss.shape, (std::vector<size_t>{}));
-    EXPECT_FLOAT_EQ(loss[0], 2.0f);
-}
-
 TEST_F(ndarray_mse_loss, ShouldHandleNonContiguousTransposedStridedArrays) {
     NDArray pred({1.0f, 3.0f, 2.0f, 4.0f}, {2, 2});
     NDArray target({2.0f, 2.0f, 1.0f, 6.0f}, {2, 2});
